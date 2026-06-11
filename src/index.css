@@ -1,0 +1,165 @@
+:root {
+  --bg-deep: #f3f6fa;                 /* Off-white light grey-blue background */
+  --bg-card: #ffffff;                 /* Solid white panels */
+  --bg-card-hover: #fcfdfe;
+  --border-glass: rgba(15, 43, 92, 0.08); /* Soft slate border */
+  --accent-emerald: #059669;          /* Emerald Green (high readability) */
+  --accent-blue: #1d4ed8;             /* Vibrant Navy Blue */
+  --accent-gold: #b45309;             /* Dark Gold/Amber */
+  --accent-danger: #dc2626;           /* Solid Red */
+  --text-primary: #0f2b5c;            /* Deep Navy Blue for text */
+  --text-secondary: #64748b;          /* Steel Grey */
+  --font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --shadow-neon: 0 4px 15px rgba(5, 150, 105, 0.08); /* Soft green shadow */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  /* Soft, organic light gradients */
+  background-image: radial-gradient(circle at 15% 50%, rgba(5, 150, 105, 0.02), transparent 50%),
+                    radial-gradient(circle at 85% 30%, rgba(29, 78, 216, 0.02), transparent 50%);
+}
+
+.glass-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(15, 43, 92, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel:hover {
+  border-color: rgba(15, 43, 92, 0.12);
+  background: var(--bg-card-hover);
+  box-shadow: 0 10px 30px rgba(15, 43, 92, 0.07);
+}
+
+.glass-input {
+  background: #ffffff;
+  border: 1px solid rgba(15, 43, 92, 0.12);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 12px 16px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-shadow: inset 0 1px 2px rgba(15, 43, 92, 0.02);
+}
+
+.glass-input::placeholder {
+  color: #94a3b8;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: var(--accent-emerald);
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+  background: #ffffff;
+}
+
+.glass-button {
+  background: var(--accent-emerald);
+  color: #ffffff;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.glass-button:hover {
+  background: #047857; /* Darker green on hover */
+  box-shadow: 0 6px 15px rgba(4, 120, 87, 0.25);
+  transform: translateY(-1px);
+  color: #ffffff;
+}
+
+.glass-button.danger {
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--accent-danger);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  box-shadow: none;
+}
+
+.glass-button.danger:hover {
+  background: var(--accent-danger);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+}
+
+.glass-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.glass-table th, .glass-table td {
+  padding: 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 43, 92, 0.06);
+}
+
+.glass-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  background: rgba(15, 43, 92, 0.02);
+}
+
+.glass-table tr:hover {
+  background: rgba(15, 43, 92, 0.015);
+}
+
+.neon-text-emerald {
+  color: var(--accent-emerald);
+  font-weight: 700;
+}
+
+.neon-text-gold {
+  color: var(--accent-gold);
+  font-weight: 700;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Custom styled scrollbars matching the light theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 43, 92, 0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 43, 92, 0.24);
+}
