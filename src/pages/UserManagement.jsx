@@ -237,7 +237,7 @@ export default function UserManagement() {
       </div>
 
       {/* Directory Table */}
-      <div className="glass-panel" style={{ padding: '24px' }}>
+      <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
         <table className="glass-table">
           <thead>
             <tr>
@@ -266,6 +266,8 @@ export default function UserManagement() {
                 
                 const labels = {
                   'visa': 'VISA Files',
+                  'eoid-normal': 'Normal EOID File',
+                  'eoid-underage': 'Under-Age EOID File',
                   'eoid': 'Ethiopian Origin ID File',
                   'residence-id': 'Residence ID File',
                   'etd': 'Emergency Travel Document File',
@@ -275,6 +277,8 @@ export default function UserManagement() {
                 };
                 const colors = {
                   'visa': 'var(--accent-emerald)',
+                  'eoid-normal': 'var(--accent-gold)',
+                  'eoid-underage': '#f97316',
                   'eoid': 'var(--accent-gold)',
                   'residence-id': 'var(--accent-blue)',
                   'etd': '#a5b4fc',
@@ -284,9 +288,22 @@ export default function UserManagement() {
                 };
 
                 return (
-                  <span style={{ color: colors[divs[0]] || 'inherit', fontSize: '0.85rem', fontWeight: 600 }}>
-                    {labels[divs[0]] || divs[0]}
-                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {divs.map(div => (
+                      <span key={div} style={{ 
+                        color: colors[div] || '#64748b', 
+                        fontSize: '0.78rem', 
+                        fontWeight: 600,
+                        background: (colors[div] || '#64748b') + '15',
+                        border: `1px solid ${(colors[div] || '#64748b')}25`,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        display: 'inline-block'
+                      }}>
+                        {labels[div] || div}
+                      </span>
+                    ))}
+                  </div>
                 );
               };
 
@@ -339,7 +356,10 @@ export default function UserManagement() {
       {isModalOpen && (
         <div style={{
           position: 'fixed',
-          inset: 0,
+          top: '80px',
+          left: '280px', // Align next to Sidebar
+          right: 0,
+          bottom: 0,
           background: 'rgba(5, 10, 21, 0.85)',
           backdropFilter: 'blur(12px)',
           display: 'flex',
@@ -352,7 +372,9 @@ export default function UserManagement() {
             width: '100%',
             maxWidth: '500px',
             padding: '32px',
-            border: '1px solid rgba(255,255,255,0.12)'
+            border: '1px solid rgba(255,255,255,0.12)',
+            maxHeight: 'calc(100vh - 140px)',
+            overflowY: 'auto'
           }}>
             <h3 style={{ margin: '0 0 24px 0', fontWeight: 300, fontSize: '1.4rem' }}>
               {editingUser ? 'Edit User Credentials' : 'Create User Account'}
@@ -385,7 +407,6 @@ export default function UserManagement() {
                   value={formData.email} 
                   onChange={e => setFormData({ ...formData, email: e.target.value })} 
                   placeholder="e.g. officer@ics.gov"
-                  disabled={!!editingUser}
                   required
                 />
               </div>
@@ -462,23 +483,49 @@ export default function UserManagement() {
 
               {(formData.role === 'OFFICER' || formData.role === 'VIEWER') && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Assigned Division</label>
-                  <select
-                    className="glass-input"
-                    value={formData.allowedDivisions[0] || ''}
-                    onChange={e => setFormData({ ...formData, allowedDivisions: e.target.value ? [e.target.value] : [] })}
-                    required
-                  >
-                    <option value="">-- Select Division --</option>
-                    <option value="visa">VISA Files</option>
-                    <option value="eoid-normal">Ethiopian Origin ID — Normal File</option>
-                    <option value="eoid-underage">Ethiopian Origin ID — Under-Age File</option>
-                    <option value="residence-id">Residence ID File</option>
-                    <option value="etd">Emergency Travel Document File</option>
-                    <option value="eritrean-id">Eritrean ID File</option>
-                    <option value="alien-passport">Alien Passport File</option>
-                    <option value="yellow-card">Yellow Card File</option>
-                  </select>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Assigned Divisions (Select all that apply)</label>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr',
+                    gap: '8px',
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-glass)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    background: 'rgba(15, 43, 92, 0.01)'
+                  }}>
+                    {DIVISIONS.map(div => {
+                      const isSelected = formData.allowedDivisions.includes(div.key);
+                      return (
+                        <div 
+                          key={div.key}
+                          onClick={() => toggleDivision(div.key)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            background: isSelected ? 'rgba(15, 43, 92, 0.04)' : 'transparent',
+                            transition: 'all 0.2s ease',
+                            border: `1px solid ${isSelected ? 'rgba(15, 43, 92, 0.15)' : 'transparent'}`
+                          }}
+                        >
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}} // toggled by outer click handler
+                            style={{ cursor: 'pointer', accentColor: 'var(--accent-emerald)' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', fontWeight: isSelected ? 600 : 400, color: 'var(--text-primary)' }}>
+                            {div.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

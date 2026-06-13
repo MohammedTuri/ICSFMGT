@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import * as XLSX from 'xlsx';
 import {
   BarChart2, Download, Printer, Filter, Search, X,
   CheckCircle, AlertTriangle, FileText, Fingerprint, Award,
@@ -225,7 +226,9 @@ export default function Reports() {
         (r.requestNumber && r.requestNumber.toUpperCase().includes(term)) ||
         (r.eoidNumber && r.eoidNumber.toUpperCase().includes(term)) ||
         (r.residenceIdNumber && r.residenceIdNumber.toUpperCase().includes(term)) ||
-        (r.etdNumber && r.etdNumber.toUpperCase().includes(term))
+        (r.etdNumber && r.etdNumber.toUpperCase().includes(term)) ||
+        (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term)) ||
+        (r.cabinetNumber && r.cabinetNumber.toUpperCase().includes(term))
       );
     }
 
@@ -284,44 +287,45 @@ export default function Reports() {
     }));
   };
 
-  /* ── CSV Export ── */
-  const handleExportCSV = () => {
+  /* ── Excel Export ── */
+  const handleExportExcel = () => {
     if (results.length === 0) { alert('No records to export.'); return; }
     const headers = [
-      'Division', 'BOX Number', 'Full Name', 'Sex', 'Citizenship',
+      'Division', 'Shelf No.', 'Cabinet/Kent No.', 'BOX Number', 'Full Name', 'Sex', 'Citizenship',
       'Passport Number', 'Request Number', 'Date', 'Service Provided',
       'EOID Number', 'Residence ID No.', 'ETD Number',
       'Eritrean ID No.', 'Alien Passport No.', 'Yellow Card No.',
       'Attachment Count'
     ];
-    const rows = results.map(r => [
-      `"${r._divisionLabel || ''}"`,
-      `"${r.boxNumber || ''}"`,
-      `"${r.fullName || ''}"`,
-      `"${r.sex || ''}"`,
-      `"${r.citizenship || ''}"`,
-      `"${r.passportNumber || ''}"`,
-      `"${r.requestNumber || ''}"`,
-      `"${r.date || ''}"`,
-      `"${r.serviceProvided || ''}"`,
-      `"${r.eoidNumber || ''}"`,
-      `"${r.residenceIdNumber || ''}"`,
-      `"${r.etdNumber || ''}"`,
-      `"${r.eritreanIdNumber || ''}"`,
-      `"${r.alienPassportNumber || ''}"`,
-      `"${r.yellowCardNumber || ''}"`,
-      `"${r.attachments ? r.attachments.length : 0}"`,
-    ].join(','));
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
+
+    const data = results.map(r => {
+      return {
+        'Division': r._divisionLabel || '',
+        'Shelf No.': r.shelfNumber || '',
+        'Cabinet/Kent No.': r.cabinetNumber || '',
+        'BOX Number': r.boxNumber || '',
+        'Full Name': r.fullName || '',
+        'Sex': r.sex || '',
+        'Citizenship': r.citizenship || '',
+        'Passport Number': r.passportNumber || '',
+        'Request Number': r.requestNumber || '',
+        'Date': r.date || '',
+        'Service Provided': r.serviceProvided || '',
+        'EOID Number': r.eoidNumber || '',
+        'Residence ID No.': r.residenceIdNumber || '',
+        'ETD Number': r.etdNumber || '',
+        'Eritrean ID No.': r.eritreanIdNumber || '',
+        'Alien Passport No.': r.alienPassportNumber || '',
+        'Yellow Card No.': r.yellowCardNumber || '',
+        'Attachment Count': r.attachments ? r.attachments.length : 0
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
     const today = new Date().toISOString().split('T')[0];
-    a.download = `ICS_Report_${today}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    XLSX.writeFile(workbook, `ICS_Report_${today}.xlsx`);
   };
 
   /* ── Print ── */
@@ -397,7 +401,7 @@ export default function Reports() {
           <div style={{ display: 'flex', gap: '10px' }}>
             {results.length > 0 && (
               <>
-                <button onClick={handleExportCSV} style={{
+                <button onClick={handleExportExcel} style={{
                   background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
                   color: '#fff', padding: '10px 20px', borderRadius: '10px',
                   display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
@@ -407,7 +411,7 @@ export default function Reports() {
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.22)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
                 >
-                  <Download size={16} /> Export CSV
+                  <Download size={16} /> Export Excel
                 </button>
                 <button onClick={handlePrint} style={{
                   background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
@@ -703,6 +707,8 @@ export default function Reports() {
                       <tr>
                         <th>#</th>
                         <th>File Category</th>
+                        <th>Shelf No.</th>
+                        <th>Cabinet No.</th>
                         <th>BOX No.</th>
                         <th>Full Name</th>
                         <th>Sex</th>
@@ -731,6 +737,8 @@ export default function Reports() {
                                 {r._divisionLabel}
                               </span>
                             </td>
+                            <td>{r.shelfNumber || '—'}</td>
+                            <td>{r.cabinetNumber || '—'}</td>
                             <td style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.boxNumber}</td>
                             <td style={{ fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{r.fullName}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>{r.sex}</td>

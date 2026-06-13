@@ -30,6 +30,8 @@ const ALL_COUNTRIES = [
 
 export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, initialRecord = null }) {
   const [formData, setFormData] = useState({
+    shelfNumber: '',
+    cabinetNumber: '',
     boxNumber: '',
     fullName: '',
     sex: 'MALE',
@@ -61,6 +63,8 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
     if (isOpen) {
       if (initialRecord) {
         setFormData({
+          shelfNumber: initialRecord.shelfNumber || '',
+          cabinetNumber: initialRecord.cabinetNumber || '',
           boxNumber: initialRecord.boxNumber || '',
           fullName: initialRecord.fullName || '',
           sex: initialRecord.sex || 'MALE',
@@ -81,6 +85,8 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
       } else {
         // Reset to default
         setFormData({
+          shelfNumber: '',
+          cabinetNumber: '',
           boxNumber: '',
           fullName: '',
           sex: 'MALE',
@@ -256,6 +262,26 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
           
           {/* Biographical Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Shelf Number</label>
+              <input 
+                className="glass-input" 
+                value={formData.shelfNumber} 
+                onChange={e => setFormData({ ...formData, shelfNumber: e.target.value.toUpperCase() })} 
+                placeholder="e.g. SHELF 3" 
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Cabinet / Kent No.</label>
+              <input 
+                className="glass-input" 
+                value={formData.cabinetNumber} 
+                onChange={e => setFormData({ ...formData, cabinetNumber: e.target.value.toUpperCase() })} 
+                placeholder="e.g. KENT 4" 
+              />
+            </div>
+
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>BOX Number *</label>
               <input 

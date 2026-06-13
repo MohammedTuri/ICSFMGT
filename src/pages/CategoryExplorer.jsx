@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Download, Upload, Search, Plus, Edit, Trash2, Eye, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { getAllRecords, addRecord, updateRecord, deleteRecord, importRecords } from '../utils/db';
 import RecordFormModal from '../components/RecordFormModal';
 
@@ -55,7 +56,9 @@ export default function CategoryExplorer({ category }) {
         (r.fullName && r.fullName.toUpperCase().includes(term)) ||
         (r.passportNumber && r.passportNumber.toUpperCase().includes(term)) ||
         (r.boxNumber && r.boxNumber.toUpperCase().includes(term)) ||
-        (r.requestNumber && r.requestNumber.toUpperCase().includes(term))
+        (r.requestNumber && r.requestNumber.toUpperCase().includes(term)) ||
+        (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term)) ||
+        (r.cabinetNumber && r.cabinetNumber.toUpperCase().includes(term))
       );
     }
 
@@ -64,8 +67,8 @@ export default function CategoryExplorer({ category }) {
       let valA = (a[field] || '').toString().toUpperCase();
       let valB = (b[field] || '').toString().toUpperCase();
       
-      // Numeric sort for box number if it has numbers
-      if (field === 'boxNumber') {
+      // Numeric sort for box/shelf/cabinet numbers if they contain digits
+      if (field === 'boxNumber' || field === 'shelfNumber' || field === 'cabinetNumber') {
         const numA = parseInt(valA.replace(/\D/g, '')) || 0;
         const numB = parseInt(valB.replace(/\D/g, '')) || 0;
         if (numA !== numB) return ascending ? numA - numB : numB - numA;
@@ -95,6 +98,14 @@ export default function CategoryExplorer({ category }) {
   // CRUD Operations
   const handleSaveRecord = async (savedRecord) => {
     try {
+      // Duplicate Passport Number Check
+      const passportKey = savedRecord.passportNumber?.trim().toUpperCase();
+      const isDuplicate = records.some(r => r.id !== savedRecord.id && r.passportNumber?.trim().toUpperCase() === passportKey);
+      if (isDuplicate) {
+        alert(`Clearance Error: A record with Passport Number "${savedRecord.passportNumber}" already exists in this division!`);
+        return;
+      }
+
       if (savedRecord.id) {
         // Edit Mode
         await updateRecord(storeName, savedRecord);
@@ -123,15 +134,15 @@ export default function CategoryExplorer({ category }) {
     }
   };
 
-  // CSV Export
-  const handleExportCSV = () => {
+  // Excel Export
+  const handleExportExcel = () => {
     if (records.length === 0) {
       alert('No records to export.');
       return;
     }
 
     // Determine headers based on category
-    let headers = ['BOX Number', 'Full Name', 'Sex', 'Citizenship'];
+    let headers = ['Shelf No.', 'Cabinet/Kent No.', 'BOX Number', 'Full Name', 'Sex', 'Citizenship'];
     if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') headers.push('EOID Number');
     if (category === 'residence-id') headers.push('Residence ID No.', 'Company Name');
     if (category === 'etd') headers.push('ETD Number');
@@ -140,168 +151,176 @@ export default function CategoryExplorer({ category }) {
     if (category === 'yellow-card') headers.push('Yellow Card No.');
     headers.push('Passport Number', 'Request Number', 'Date', 'Service Provided');
 
-    // Generate CSV content
-    const csvRows = [];
-    csvRows.push(headers.join(','));
+    // Generate sheet data
+    const data = records.map(r => {
+      const row = {
+        'Shelf No.': r.shelfNumber || '',
+        'Cabinet/Kent No.': r.cabinetNumber || '',
+        'BOX Number': r.boxNumber || '',
+        'Full Name': r.fullName || '',
+        'Sex': r.sex || '',
+        'Citizenship': r.citizenship || '',
+      };
 
-    records.forEach(r => {
-      const row = [
-        `"${r.boxNumber || ''}"`,
-        `"${r.fullName || ''}"`,
-        `"${r.sex || ''}"`,
-        `"${r.citizenship || ''}"`,
-      ];
+      if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') row['EOID Number'] = r.eoidNumber || '';
+      if (category === 'residence-id') {
+        row['Residence ID No.'] = r.residenceIdNumber || '';
+        row['Company Name'] = r.companyName || '';
+      }
+      if (category === 'etd') row['ETD Number'] = r.etdNumber || '';
+      if (category === 'eritrean-id') row['Eritrean ID No.'] = r.eritreanIdNumber || '';
+      if (category === 'alien-passport') row['Alien Passport No.'] = r.alienPassportNumber || '';
+      if (category === 'yellow-card') row['Yellow Card No'] = r.yellowCardNumber || '';
 
-      if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') row.push(`"${r.eoidNumber || ''}"`);
-      if (category === 'residence-id') row.push(`"${r.residenceIdNumber || ''}"`, `"${r.companyName || ''}"`);
-      if (category === 'etd') row.push(`"${r.etdNumber || ''}"`);
-      if (category === 'eritrean-id') row.push(`"${r.eritreanIdNumber || ''}"`);
-      if (category === 'alien-passport') row.push(`"${r.alienPassportNumber || ''}"`);
-      if (category === 'yellow-card') row.push(`"${r.yellowCardNumber || ''}"`);
-
-      row.push(
-        `"${r.passportNumber || ''}"`,
-        `"${r.requestNumber || ''}"`,
-        `"${r.date || ''}"`,
-        `"${r.serviceProvided || ''}"`
-      );
-
-      csvRows.push(row.join(','));
+      row['Passport Number'] = r.passportNumber || '';
+      row['Request Number'] = r.requestNumber || '';
+      row['Date'] = r.date || '';
+      row['Service Provided'] = r.serviceProvided || '';
+      
+      return row;
     });
 
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `ics_${category.replace('-', '_')}_records.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Records');
+    XLSX.writeFile(workbook, `ics_${category.replace('-', '_')}_records.xlsx`);
   };
 
-  // CSV Import (Fuzzy Mapper)
-  const handleImportCSV = (e) => {
+  // Excel Import
+  const handleImportExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const text = ev.target.result;
-      const lines = text.split(/\r?\n/);
-      if (lines.length < 2) {
-        alert('Invalid CSV file.');
-        return;
-      }
-
-      // Helper function to split a CSV line into fields respecting quotes
-      const splitCSVLine = (line) => {
-        let values = [];
-        let insideQuotes = false;
-        let currentVal = '';
-        for (let char of line) {
-          if (char === '"') {
-            insideQuotes = !insideQuotes;
-          } else if (char === ',' && !insideQuotes) {
-            values.push(currentVal.trim().replace(/^"|"$/g, ''));
-            currentVal = '';
-          } else {
-            currentVal += char;
-          }
-        }
-        values.push(currentVal.trim().replace(/^"|"$/g, ''));
-        return values;
-      };
-
-      let headerLineIndex = -1;
-      let rawHeaders = [];
-
-      // Scan first 15 lines to detect header row dynamically
-      for (let i = 0; i < Math.min(lines.length, 15); i++) {
-        if (!lines[i].trim()) continue;
-        const cols = splitCSVLine(lines[i]).map(c => c.toLowerCase());
-        const hasPassport = cols.some(c => c.includes('passport'));
-        const hasName = cols.some(c => c.includes('name'));
-        const hasBox = cols.some(c => c.includes('box'));
-        const hasDate = cols.some(c => c.includes('date'));
+      try {
+        const data = new Uint8Array(ev.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
         
-        // If it contains at least two header indicators, this is our header row
-        const indicators = [hasPassport, hasName, hasBox, hasDate].filter(Boolean).length;
-        if (indicators >= 2) {
-          headerLineIndex = i;
-          rawHeaders = cols;
-          break;
+        // Read sheet as raw rows array to find the header row dynamically
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (rows.length === 0) {
+          alert('Empty or invalid Excel file.');
+          return;
         }
-      }
 
-      // If we couldn't find a header row with indicators, fallback to the first non-empty row
-      if (headerLineIndex === -1) {
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].trim()) {
-            headerLineIndex = i;
-            rawHeaders = splitCSVLine(lines[i]).map(c => c.toLowerCase());
+        // Scan first 15 rows to find the actual header row dynamically
+        let headerRowIndex = -1;
+        let headers = [];
+
+        for (let i = 0; i < Math.min(rows.length, 15); i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+          
+          const cols = row.map(c => String(c || '').toLowerCase().trim());
+          const hasPassport = cols.some(c => c.includes('passport'));
+          const hasName = cols.some(c => c.includes('name'));
+          const hasBox = cols.some(c => c.includes('box'));
+          const hasDate = cols.some(c => c.includes('date'));
+
+          // Match header if at least two indicators are met
+          const indicators = [hasPassport, hasName, hasBox, hasDate].filter(Boolean).length;
+          if (indicators >= 2) {
+            headerRowIndex = i;
+            headers = row;
             break;
           }
         }
-      }
 
-      if (headerLineIndex === -1) {
-        alert('Empty or invalid CSV file.');
-        return;
-      }
-      
-      const importedRecords = [];
-
-      for (let i = headerLineIndex + 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-
-        const values = splitCSVLine(lines[i]);
-        const record = {};
-        
-        // Map values to record object based on header mapping
-        rawHeaders.forEach((h, idx) => {
-          const val = values[idx] || '';
-          
-          // Fuzzy match headers to normalized attributes
-          if (h.includes('box')) record.boxNumber = val.toUpperCase();
-          else if (h.includes('name') && !h.includes('company')) record.fullName = val.toUpperCase();
-          else if (h.includes('sex') || h.includes('gender')) record.sex = val.toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
-          else if (h.includes('citizen') || h.includes('citizens')) record.citizenship = val.toUpperCase();
-          else if (h.includes('passport')) record.passportNumber = val.toUpperCase();
-          else if (h.includes('request')) record.requestNumber = val.toUpperCase();
-          else if (h.includes('date')) record.date = val || new Date().toISOString().split('T')[0];
-          else if (h.includes('service')) record.serviceProvided = val.toUpperCase();
-          else if (h.includes('eoid')) record.eoidNumber = val.toUpperCase();
-          else if (h.includes('residence') || h.includes('res id') || h.includes('residence id')) record.residenceIdNumber = val.toUpperCase();
-          else if (h.includes('company')) record.companyName = val.toUpperCase();
-          else if (h.includes('etd')) record.etdNumber = val.toUpperCase();
-          else if (h.includes('eritrean') || h.includes('erit id') || h.includes('eritrean id')) record.eritreanIdNumber = val.toUpperCase();
-          else if (h.includes('alien') || h.includes('alien pass') || h.includes('alien passport')) record.alienPassportNumber = val.toUpperCase();
-          else if (h.includes('yellow') || h.includes('yellow card')) record.yellowCardNumber = val.toUpperCase();
-        });
-
-        // Ensure minimum requirements are met
-        if (record.fullName && record.passportNumber) {
-          if (!record.boxNumber) record.boxNumber = 'UNBOXED';
-          record.attachments = [];
-          importedRecords.push(record);
+        // Fallback: use the first non-empty row if indicators fail
+        if (headerRowIndex === -1) {
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (row && row.length > 0 && row.some(c => c !== '')) {
+              headerRowIndex = i;
+              headers = row;
+              break;
+            }
+          }
         }
-      }
 
-      if (importedRecords.length === 0) {
-        alert('No valid records found in CSV. Make sure "Full Name" and "Passport Number" columns exist.');
-        return;
-      }
+        if (headerRowIndex === -1) {
+          alert('Invalid Excel file structure.');
+          return;
+        }
 
-      try {
+        const importedRecords = [];
+        const existingPassports = new Set(records.map(r => r.passportNumber?.trim().toUpperCase()));
+        const newPassportsInFile = new Set();
+        let duplicateCount = 0;
+
+        // Parse data starting from the row after the headers
+        for (let i = headerRowIndex + 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0 || row.every(c => c === '')) continue;
+
+          const record = {};
+          
+          headers.forEach((h, colIdx) => {
+            const val = String(row[colIdx] || '').trim();
+            const hLower = String(h || '').toLowerCase().trim();
+
+            if (hLower.includes('shelf')) record.shelfNumber = val.toUpperCase();
+            else if (hLower.includes('cabinet') || hLower.includes('kent')) record.cabinetNumber = val.toUpperCase();
+            else if (hLower.includes('box')) record.boxNumber = val.toUpperCase();
+            else if (hLower.includes('name') && !hLower.includes('company')) record.fullName = val.toUpperCase();
+            else if (hLower.includes('sex') || hLower.includes('gender')) record.sex = val.toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
+            else if (hLower.includes('citizen') || hLower.includes('citizens')) record.citizenship = val.toUpperCase();
+            else if (hLower.includes('passport')) record.passportNumber = val.toUpperCase();
+            else if (hLower.includes('request')) record.requestNumber = val.toUpperCase();
+            else if (hLower.includes('date')) record.date = val || new Date().toISOString().split('T')[0];
+            else if (hLower.includes('service')) record.serviceProvided = val.toUpperCase();
+            else if (hLower.includes('eoid')) record.eoidNumber = val.toUpperCase();
+            else if (hLower.includes('residence') || hLower.includes('res id') || hLower.includes('residence id')) record.residenceIdNumber = val.toUpperCase();
+            else if (hLower.includes('company')) record.companyName = val.toUpperCase();
+            else if (hLower.includes('etd')) record.etdNumber = val.toUpperCase();
+            else if (hLower.includes('eritrean') || hLower.includes('erit id') || hLower.includes('eritrean id')) record.eritreanIdNumber = val.toUpperCase();
+            else if (hLower.includes('alien') || hLower.includes('alien pass') || hLower.includes('alien passport')) record.alienPassportNumber = val.toUpperCase();
+            else if (hLower.includes('yellow') || hLower.includes('yellow card')) record.yellowCardNumber = val.toUpperCase();
+          });
+
+          // Ensure minimum requirements are met
+          if (record.fullName && record.passportNumber) {
+            const passportKey = record.passportNumber.trim().toUpperCase();
+            
+            // Duplicate Check: Check if already exists in DB OR is a duplicate in the same file
+            if (existingPassports.has(passportKey) || newPassportsInFile.has(passportKey)) {
+              duplicateCount++;
+            } else {
+              if (!record.shelfNumber) record.shelfNumber = '';
+              if (!record.cabinetNumber) record.cabinetNumber = '';
+              if (!record.boxNumber) record.boxNumber = 'UNBOXED';
+              record.attachments = [];
+              importedRecords.push(record);
+              newPassportsInFile.add(passportKey);
+            }
+          }
+        }
+
+        if (importedRecords.length === 0) {
+          if (duplicateCount > 0) {
+            alert(`No new records imported. All ${duplicateCount} entries in the Excel file were detected as duplicates of existing records.`);
+          } else {
+            alert('No valid records found in Excel. Make sure "Full Name" and "Passport Number" columns exist.');
+          }
+          return;
+        }
+
         await importRecords(storeName, importedRecords);
-        alert(`Successfully imported ${importedRecords.length} records into ${category.toUpperCase()} store!`);
+        let msg = `Successfully imported ${importedRecords.length} records into ${category.toUpperCase()} store!`;
+        if (duplicateCount > 0) {
+          msg += ` (Ignored ${duplicateCount} duplicate entries to prevent redundancy)`;
+        }
+        alert(msg);
         loadRecords();
       } catch (err) {
         console.error('Import error:', err);
-        alert('Failed to import records.');
+        alert('Failed to import Excel file. Verify file schema.');
       }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
     e.target.value = ''; // Reset input
   };
 
@@ -378,14 +397,14 @@ export default function CategoryExplorer({ category }) {
             </button>
           )}
           
-          <button className="glass-button" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#fff', border: '1px solid rgba(59, 130, 246, 0.3)', boxShadow: 'none' }} onClick={handleExportCSV}>
-            <Download size={18} /> Export CSV
+          <button className="glass-button" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#fff', border: '1px solid rgba(59, 130, 246, 0.3)', boxShadow: 'none' }} onClick={handleExportExcel}>
+            <Download size={18} /> Export Excel
           </button>
 
           {currentUser && currentUser.role !== 'VIEWER' && (
             <label className="glass-button" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)', boxShadow: 'none', cursor: 'pointer' }}>
-              <Upload size={18} /> Import CSV
-              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
+              <Upload size={18} /> Import Excel
+              <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImportExcel} />
             </label>
           )}
         </div>
@@ -408,6 +427,12 @@ export default function CategoryExplorer({ category }) {
         <table className="glass-table">
           <thead>
             <tr>
+              <th onClick={() => handleSort('shelfNumber')} style={{ cursor: 'pointer' }}>
+                Shelf No. <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
+              </th>
+              <th onClick={() => handleSort('cabinetNumber')} style={{ cursor: 'pointer' }}>
+                Cabinet/Kent No. <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
+              </th>
               <th onClick={() => handleSort('boxNumber')} style={{ cursor: 'pointer' }}>
                 BOX Number <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
               </th>
@@ -441,8 +466,8 @@ export default function CategoryExplorer({ category }) {
           <tbody>
             {filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={category === 'residence-id' ? 12 : 11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  No records found. Click "Add Entry" or upload a CSV to populate.
+                <td colSpan={category === 'residence-id' ? 14 : 13} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                  No records found. Click "Add Entry" or upload an Excel file to populate.
                 </td>
               </tr>
             ) : (
@@ -452,6 +477,8 @@ export default function CategoryExplorer({ category }) {
                 return (
                   <>
                     <tr key={r.id} style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--border-glass)' }}>
+                      <td>{r.shelfNumber || '—'}</td>
+                      <td>{r.cabinetNumber || '—'}</td>
                       <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.boxNumber}</td>
                       <td>
                         <span style={{ fontWeight: 500 }}>{r.fullName}</span>
@@ -542,7 +569,7 @@ export default function CategoryExplorer({ category }) {
                     {/* Expanded Row for Evidence Scans */}
                     {isExpanded && (
                       <tr style={{ background: 'rgba(5, 10, 21, 0.3)' }}>
-                        <td colSpan={category === 'residence-id' ? 12 : 11} style={{ padding: '24px 32px' }}>
+                        <td colSpan={category === 'residence-id' ? 14 : 13} style={{ padding: '24px 32px' }}>
                           <div className="glass-panel animate-fade-in" style={{ padding: '20px', border: '1px solid var(--border-glass)', background: 'rgba(13, 22, 43, 0.8)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                               <h4 style={{ margin: 0, textTransform: 'uppercase', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>

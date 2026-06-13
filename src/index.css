@@ -1,5 +1,5 @@
 :root {
-  --bg-deep: #f3f6fa;                 /* Off-white light grey-blue background */
+  --bg-deep: #ffffff;                 /* Solid white background */
   --bg-card: #ffffff;                 /* Solid white panels */
   --bg-card-hover: #fcfdfe;
   --border-glass: rgba(15, 43, 92, 0.08); /* Soft slate border */
@@ -113,6 +113,7 @@ body {
   padding: 16px;
   text-align: left;
   border-bottom: 1px solid rgba(15, 43, 92, 0.06);
+  white-space: nowrap;
 }
 
 .glass-table th {
