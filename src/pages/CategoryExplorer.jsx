@@ -397,6 +397,10 @@ export default function CategoryExplorer({ category }) {
               <Plus size={18} /> Add Entry
             </button>
           )}
+          
+          <button className="glass-button" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#fff', border: '1px solid rgba(59, 130, 246, 0.3)', boxShadow: 'none' }} onClick={handleExportExcel}>
+            <Download size={18} /> Export Excel
+          </button>
 
           {currentUser && currentUser.role !== 'VIEWER' && (
             <label className="glass-button" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)', boxShadow: 'none', cursor: 'pointer' }}>
