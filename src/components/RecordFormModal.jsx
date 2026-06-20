@@ -602,18 +602,19 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
               <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 📎 Structured Document Attachments
               </h4>
-              <div style={{ borderRadius: '12px', overflow: 'hidden', border: `1px solid ${activeTab === 'eritrean-id' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}` }}>
+              <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
                 
                 {/* Predefined Document Rows */}
                 {currentDocTypes ? (
                   <>
                     {/* Header */}
                     <div style={{
-                      display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
-                      background: 'linear-gradient(135deg, #1e293b, #334155)',
+                      display: 'grid', gridTemplateColumns: '120px 1fr 180px 120px',
+                      background: 'rgba(15, 43, 92, 0.05)',
+                      borderBottom: '1px solid var(--border-glass)',
                       padding: '12px 16px',
-                      fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px',
-                      color: '#94a3b8'
+                      fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px',
+                      color: 'var(--text-primary)'
                     }}>
                       <span>Category</span>
                       <span>Document Type</span>
@@ -621,23 +622,34 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                       <span style={{ textAlign: 'center' }}>Actions</span>
                     </div>
 
-                    {currentDocTypes.map((doc) => {
+                    {currentDocTypes.map((doc, index) => {
                       const docAttachment = attachments.find(att => att.docType === doc.key);
                       return (
                         <div key={doc.key} style={{
-                          display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
+                          display: 'grid', gridTemplateColumns: '120px 1fr 180px 120px',
                           padding: '14px 16px', alignItems: 'center',
-                          borderTop: '1px solid rgba(255,255,255,0.06)',
-                          background: 'rgba(0,0,0,0.15)'
+                          borderTop: '1px solid var(--border-glass)',
+                          background: index % 2 === 0 ? '#ffffff' : 'rgba(15, 43, 92, 0.01)'
                         }}>
-                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>{doc.category}</span>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>{doc.label}</span>
-                          <span style={{
-                            textAlign: 'center', fontSize: '0.78rem', fontStyle: 'italic',
-                            color: docAttachment ? '#34d399' : '#94a3b8',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 8px'
-                          }}>
-                            {docAttachment ? docAttachment.name : 'NOT PROVIDED'}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{doc.category}</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{doc.label}</span>
+                          <span style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 'bold',
+                              padding: '4px 10px',
+                              borderRadius: '20px',
+                              textTransform: 'uppercase',
+                              border: docAttachment ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)',
+                              background: docAttachment ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                              color: docAttachment ? 'var(--accent-emerald)' : 'var(--accent-danger)',
+                              maxWidth: '160px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }} title={docAttachment ? docAttachment.name : 'Not Provided'}>
+                              {docAttachment ? docAttachment.name : 'NOT PROVIDED'}
+                            </span>
                           </span>
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                             {docAttachment && (
@@ -648,8 +660,8 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                                 a.click();
                               }} title="Download" style={{
                                 width: '30px', height: '30px', borderRadius: '6px',
-                                background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)',
-                                color: '#a78bfa', cursor: 'pointer',
+                                background: 'rgba(29, 78, 216, 0.1)', border: '1px solid rgba(29, 78, 216, 0.25)',
+                                color: 'var(--accent-blue)', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
                               }}>
                                 <Download size={14} />
@@ -657,8 +669,8 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                             )}
                             <button type="button" onClick={() => handlePredefinedUploadClick(doc.key, doc.label, doc.category)} title="Upload" style={{
                               width: '30px', height: '30px', borderRadius: '6px',
-                              background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)',
-                              color: '#34d399', cursor: 'pointer',
+                              background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)',
+                              color: 'var(--accent-emerald)', cursor: 'pointer',
                               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
                             }}>
                               <Upload size={14} />
@@ -666,8 +678,8 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                             {docAttachment && (
                               <button type="button" onClick={() => setAttachments(prev => prev.filter(att => att.docType !== doc.key))} title="Remove" style={{
                                 width: '30px', height: '30px', borderRadius: '6px',
-                                background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                                color: '#f87171', cursor: 'pointer',
+                                background: 'rgba(220, 38, 38, 0.08)', border: '1px solid rgba(220, 38, 38, 0.2)',
+                                color: 'var(--accent-danger)', cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
                               }}>
                                 <X size={14} />
@@ -683,7 +695,7 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                     padding: '24px', 
                     textAlign: 'center', 
                     color: 'var(--text-secondary)',
-                    background: 'rgba(0,0,0,0.15)',
+                    background: 'rgba(0,0,0,0.02)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -696,25 +708,27 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
 
                 {/* Other Documents Section */}
                 <div style={{
-                  padding: '10px 16px',
-                  background: 'linear-gradient(135deg, #1e293b, #334155)',
+                  padding: '12px 16px',
+                  background: 'rgba(15, 43, 92, 0.05)',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  borderTop: '1px solid rgba(255,255,255,0.08)'
+                  borderTop: '1px solid var(--border-glass)',
+                  borderBottom: '1px solid var(--border-glass)'
                 }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8' }}>📎 Other Documents</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-primary)' }}>📎 Other Documents</span>
                   <button type="button" onClick={handleOtherUploadClick} style={{
                     padding: '6px 16px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
-                    background: 'rgba(255,255,255,0.9)', color: '#0f172a', border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '6px'
+                    background: 'var(--accent-blue)', color: '#ffffff', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(29, 78, 216, 0.2)'
                   }}>+ ADD</button>
                 </div>
 
                 {/* Other Documents Header */}
                 <div style={{
-                  display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
-                  padding: '8px 16px', fontSize: '0.68rem', fontWeight: 600,
-                  textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b',
-                  borderTop: '1px solid rgba(255,255,255,0.04)'
+                  display: 'grid', gridTemplateColumns: '120px 1fr 180px 120px',
+                  padding: '10px 16px', fontSize: '0.72rem', fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)',
+                  borderBottom: '1px solid var(--border-glass)',
+                  background: 'rgba(15, 43, 92, 0.02)'
                 }}>
                   <span>Category</span>
                   <span>Document Type</span>
@@ -723,35 +737,48 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                 </div>
 
                 {attachments.filter(att => !att.docType).length === 0 ? (
-                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', fontStyle: 'italic', background: '#ffffff' }}>
                     NO ADDITIONAL DOCUMENTS ADDED
                   </div>
                 ) : (
-                  attachments.filter(att => !att.docType).map(doc => (
+                  attachments.filter(att => !att.docType).map((doc, index) => (
                     <div key={doc.id} style={{
-                      display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
-                      padding: '10px 16px', alignItems: 'center',
-                      borderTop: '1px solid rgba(255,255,255,0.04)',
-                      background: 'rgba(0,0,0,0.1)'
+                      display: 'grid', gridTemplateColumns: '120px 1fr 180px 120px',
+                      padding: '12px 16px', alignItems: 'center',
+                      borderTop: '1px solid var(--border-glass)',
+                      background: index % 2 === 0 ? '#ffffff' : 'rgba(15, 43, 92, 0.01)'
                     }}>
-                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>OTHER</span>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
-                      <span style={{ textAlign: 'center', fontSize: '0.78rem', color: '#34d399' }}>UPLOADED</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>OTHER</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
+                      <span style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 'bold',
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          color: 'var(--accent-emerald)',
+                          textTransform: 'uppercase'
+                        }}>
+                          Uploaded
+                        </span>
+                      </span>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button type="button" onClick={() => {
                           const a = document.createElement('a'); a.href = doc.dataUrl; a.download = doc.name; a.click();
                         }} title="Download" style={{
                           width: '30px', height: '30px', borderRadius: '6px',
-                          background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)',
-                          color: '#a78bfa', cursor: 'pointer',
+                          background: 'rgba(29, 78, 216, 0.1)', border: '1px solid rgba(29, 78, 216, 0.25)',
+                          color: 'var(--accent-blue)', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
                         }}>
                           <Download size={14} />
                         </button>
                         <button type="button" onClick={() => setAttachments(prev => prev.filter(d => d.id !== doc.id))} title="Remove" style={{
                           width: '30px', height: '30px', borderRadius: '6px',
-                          background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                          color: '#f87171', cursor: 'pointer',
+                          background: 'rgba(220, 38, 38, 0.08)', border: '1px solid rgba(220, 38, 38, 0.2)',
+                          color: 'var(--accent-danger)', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
                         }}>
                           <X size={14} />
