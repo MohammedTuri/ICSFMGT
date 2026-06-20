@@ -221,14 +221,14 @@ export default function Reports() {
       const term = f.keyword.trim().toUpperCase();
       result = result.filter(r =>
         (r.fullName && r.fullName.toUpperCase().includes(term)) ||
+        (r.personalId && r.personalId.toUpperCase().includes(term)) ||
         (r.passportNumber && r.passportNumber.toUpperCase().includes(term)) ||
         (r.boxNumber && r.boxNumber.toUpperCase().includes(term)) ||
         (r.requestNumber && r.requestNumber.toUpperCase().includes(term)) ||
         (r.eoidNumber && r.eoidNumber.toUpperCase().includes(term)) ||
         (r.residenceIdNumber && r.residenceIdNumber.toUpperCase().includes(term)) ||
         (r.etdNumber && r.etdNumber.toUpperCase().includes(term)) ||
-        (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term)) ||
-        (r.cabinetNumber && r.cabinetNumber.toUpperCase().includes(term))
+        (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term))
       );
     }
 
@@ -291,7 +291,7 @@ export default function Reports() {
   const handleExportExcel = () => {
     if (results.length === 0) { alert('No records to export.'); return; }
     const headers = [
-      'Division', 'Shelf No.', 'Cabinet/Kent No.', 'BOX Number', 'Full Name', 'Sex', 'Citizenship',
+      'Division', 'Shelf No.', 'BOX Number', 'Personal ID', 'Full Name', 'Sex', 'Citizenship',
       'Passport Number', 'Request Number', 'Date', 'Service Provided',
       'EOID Number', 'Residence ID No.', 'ETD Number',
       'Eritrean ID No.', 'Alien Passport No.', 'Yellow Card No.',
@@ -302,8 +302,8 @@ export default function Reports() {
       return {
         'Division': r._divisionLabel || '',
         'Shelf No.': r.shelfNumber || '',
-        'Cabinet/Kent No.': r.cabinetNumber || '',
         'BOX Number': r.boxNumber || '',
+        'Personal ID': r.personalId || '',
         'Full Name': r.fullName || '',
         'Sex': r.sex || '',
         'Citizenship': r.citizenship || '',
@@ -708,8 +708,8 @@ export default function Reports() {
                         <th>#</th>
                         <th>File Category</th>
                         <th>Shelf No.</th>
-                        <th>Cabinet No.</th>
                         <th>BOX No.</th>
+                        <th style={{ color: '#1054a8', fontWeight: 700 }}>🪪 Personal ID</th>
                         <th>Full Name</th>
                         <th>Sex</th>
                         <th>Citizenship</th>
@@ -738,8 +738,8 @@ export default function Reports() {
                               </span>
                             </td>
                             <td>{r.shelfNumber || '—'}</td>
-                            <td>{r.cabinetNumber || '—'}</td>
                             <td style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.boxNumber}</td>
+                            <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#1054a8', whiteSpace: 'nowrap' }}>{r.personalId || '—'}</td>
                             <td style={{ fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{r.fullName}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>{r.sex}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>{r.citizenship || '—'}</td>

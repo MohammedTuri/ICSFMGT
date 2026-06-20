@@ -311,7 +311,26 @@ export default function UserManagement() {
                 <tr key={u.id}>
                   <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.fullName} {isSelf && <span style={{ color: 'var(--accent-emerald)', fontSize: '0.8rem', fontWeight: 'normal' }}>(You)</span>}</td>
                   <td style={{ fontFamily: 'monospace' }}>{u.email || u.username}</td>
-                  <td>{getRoleBadge(u.role)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {getRoleBadge(u.role)}
+                      {u.locked && (
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 'bold',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: 'var(--accent-danger)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          Locked
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td>{getDivisionDisplay(u)}</td>
                   <td style={{ fontFamily: 'monospace', opacity: 0.6, fontSize: '0.8rem' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -325,6 +344,26 @@ export default function UserManagement() {
                   {/* Action Panel */}
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '8px' }}>
+                      {u.locked && (
+                        <button 
+                          className="glass-button"
+                          style={{ padding: '6px 10px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', boxShadow: 'none' }}
+                          disabled={!canModify}
+                          onClick={async () => {
+                            if (window.confirm(`Unlock account for ${u.fullName}?`)) {
+                              try {
+                                await updateRecord('users', { ...u, locked: false, loginAttempts: 0 });
+                                loadUsers();
+                              } catch (err) {
+                                console.error('Error unlocking user:', err);
+                              }
+                            }
+                          }}
+                          title="Unlock User Account"
+                        >
+                          <UserCheck size={14} /> Unlock
+                        </button>
+                      )}
                       <button 
                         className="glass-button"
                         style={{ padding: '6px 10px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', boxShadow: 'none' }}

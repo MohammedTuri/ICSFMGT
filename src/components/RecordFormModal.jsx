@@ -1,5 +1,53 @@
-import { useState, useEffect, useRef } from 'react';
-import { Camera, X, Upload, FileText, Check, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Upload, FileText, CheckCircle, AlertTriangle, Trash2, Eye, Download } from 'lucide-react';
+
+const DOC_TYPES_CONFIG = {
+  'eoid-normal': [
+    { key: 'passportCopy', category: 'APPLICANT', label: 'PASSPORT COPY' },
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'birthCertificate', category: 'APPLICANT', label: 'BIRTH CERTIFICATE' },
+    { key: 'familyOrCourtDoc', category: 'APPLICANT', label: 'FAMILY DOCUMENT OR COURT LETTER' }
+  ],
+  'eoid-underage': [
+    { key: 'passportCopy', category: 'APPLICANT', label: 'PASSPORT COPY' },
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'birthCertificate', category: 'APPLICANT', label: 'BIRTH CERTIFICATE' },
+    { key: 'familyOrCourtDoc', category: 'APPLICANT', label: 'FAMILY DOCUMENT OR COURT LETTER' }
+  ],
+  'residence-id-temporary': [
+    { key: 'passportCopy', category: 'APPLICANT', label: 'PASSPORT COPY' },
+    { key: 'applicationLetter', category: 'APPLICANT', label: 'APPLICATION LETTER' },
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'businessLicense', category: 'APPLICANT', label: 'BUSINESS LICENCE' },
+    { key: 'workPermit', category: 'APPLICANT', label: 'WORK PERMIT' }
+  ],
+  'residence-id-permanent': [
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'authorizedBodyDecision', category: 'APPLICANT', label: 'AUTHORIZED BODY DECISION' },
+    { key: 'passportCopy', category: 'APPLICANT', label: 'PASSPORT COPY' },
+    { key: 'validityPeriod', category: 'APPLICANT', label: 'VALIDITY PERIOD' }
+  ],
+  'eritrean-id': [
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'applicationLetter', category: 'APPLICANT', label: 'APPLICATION LETTER' },
+    { key: 'previousId', category: 'APPLICANT', label: 'PREVIOUS ID' }
+  ],
+  'alien-passport': [
+    { key: 'eritreanId', category: 'APPLICANT', label: 'ERITREAN ID' },
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'applicationLetter', category: 'APPLICANT', label: 'APPLICATION LETTER' }
+  ],
+  'visa': [
+    { key: 'passportCopy', category: 'APPLICANT', label: 'PASSPORT COPY' },
+    { key: 'applicantLetter', category: 'APPLICANT', label: 'APPLICANT LETTER' },
+    { key: 'entryVisa', category: 'APPLICANT', label: 'ENTRY VISA' }
+  ],
+  'etd': [
+    { key: 'applicationForm', category: 'APPLICANT', label: 'APPLICATION FORM' },
+    { key: 'araLetter', category: 'APPLICANT', label: 'ARA LETTER' },
+    { key: 'hilawinet', category: 'APPLICANT', label: 'HILAWINET' }
+  ]
+};
 
 const ALL_COUNTRIES = [
   "AFGHAN", "ALBANIAN", "ALGERIAN", "AMERICAN", "ANDORRAN", "ANGOLAN", "ANTIGUAN", "ARGENTINE", "ARMENIAN", "AUSTRALIAN", "AUSTRIAN", "AZERBAIJANI",
@@ -30,8 +78,8 @@ const ALL_COUNTRIES = [
 
 export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, initialRecord = null }) {
   const [formData, setFormData] = useState({
+    personalId: '',
     shelfNumber: '',
-    cabinetNumber: '',
     boxNumber: '',
     fullName: '',
     sex: 'MALE',
@@ -43,28 +91,84 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
     // Category-specific
     eoidNumber: '',
     residenceIdNumber: '',
+    residenceIdType: '',
+    permanentId: '',
+    temporaryId: '',
     companyName: '',
     etdNumber: '',
     eritreanIdNumber: '',
     alienPassportNumber: '',
-    yellowCardNumber: ''
+    yellowCardNumber: '',
+    yellowCardType: '',
+    visaNumber: '',
+    visaType: ''
   });
 
   const [attachments, setAttachments] = useState([]);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
-  
-  const videoRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const streamRef = useRef(null);
+
+  const handlePredefinedUploadClick = (docKey, docLabel, category) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const newAttachment = {
+          id: 'pre_' + docKey + '_' + Date.now(),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl: ev.target.result,
+          docType: docKey,
+          label: docLabel,
+          category: category,
+          uploadedAt: new Date().toISOString()
+        };
+        setAttachments(prev => {
+          const filtered = prev.filter(att => att.docType !== docKey);
+          return [...filtered, newAttachment];
+        });
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const handleOtherUploadClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    input.multiple = true;
+    input.onchange = (e) => {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const newAttachment = {
+            id: 'other_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            dataUrl: ev.target.result,
+            uploadedAt: new Date().toISOString()
+          };
+          setAttachments(prev => [...prev, newAttachment]);
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+    input.click();
+  };
 
   // Initialize form when modal opens or initialRecord changes
   useEffect(() => {
     if (isOpen) {
       if (initialRecord) {
         setFormData({
+          personalId: initialRecord.personalId || '',
           shelfNumber: initialRecord.shelfNumber || '',
-          cabinetNumber: initialRecord.cabinetNumber || '',
           boxNumber: initialRecord.boxNumber || '',
           fullName: initialRecord.fullName || '',
           sex: initialRecord.sex || 'MALE',
@@ -75,18 +179,24 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
           serviceProvided: initialRecord.serviceProvided || '',
           eoidNumber: initialRecord.eoidNumber || '',
           residenceIdNumber: initialRecord.residenceIdNumber || '',
+          residenceIdType: initialRecord.residenceIdType || '',
+          permanentId: initialRecord.permanentId || '',
+          temporaryId: initialRecord.temporaryId || '',
           companyName: initialRecord.companyName || '',
           etdNumber: initialRecord.etdNumber || '',
           eritreanIdNumber: initialRecord.eritreanIdNumber || '',
           alienPassportNumber: initialRecord.alienPassportNumber || '',
-          yellowCardNumber: initialRecord.yellowCardNumber || ''
+          yellowCardNumber: initialRecord.yellowCardNumber || '',
+          yellowCardType: initialRecord.yellowCardType || '',
+          visaNumber: initialRecord.visaNumber || '',
+          visaType: initialRecord.visaType || ''
         });
         setAttachments(initialRecord.attachments || []);
       } else {
         // Reset to default
         setFormData({
+          personalId: '',
           shelfNumber: '',
-          cabinetNumber: '',
           boxNumber: '',
           fullName: '',
           sex: 'MALE',
@@ -97,105 +207,38 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
           serviceProvided: '',
           eoidNumber: '',
           residenceIdNumber: '',
+          residenceIdType: '',
+          permanentId: '',
+          temporaryId: '',
           companyName: '',
           etdNumber: '',
           eritreanIdNumber: '',
           alienPassportNumber: '',
-          yellowCardNumber: ''
+          yellowCardNumber: '',
+          yellowCardType: '',
+          visaNumber: '',
+          visaType: ''
         });
         setAttachments([]);
       }
-      setIsCameraActive(false);
-      setCameraError(null);
     }
   }, [isOpen, initialRecord, activeTab]);
 
-  // Clean up camera stream on close
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
+  let activeConfigKey = activeTab;
+  if (activeTab === 'residence-id') {
+    if (formData.residenceIdType === 'TEMPORARY') {
+      activeConfigKey = 'residence-id-temporary';
+    } else if (formData.residenceIdType === 'PERMANENT') {
+      activeConfigKey = 'residence-id-permanent';
+    } else {
+      activeConfigKey = null;
+    }
+  }
+  const currentDocTypes = activeConfigKey ? DOC_TYPES_CONFIG[activeConfigKey] : null;
 
   if (!isOpen) return null;
 
-  // Handle webcam operations
-  async function startCamera() {
-    setCameraError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'environment' }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setIsCameraActive(true);
-    } catch (err) {
-      console.error('Camera access error:', err);
-      setCameraError('Could not access camera. Please check permissions.');
-    }
-  }
 
-  function stopCamera() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setIsCameraActive(false);
-  }
-
-  function capturePhoto() {
-    if (!videoRef.current) return;
-    
-    const video = videoRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    
-    const ctx = canvas.getContext('2d');
-    // Draw the current video frame on canvas
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Convert to compressed jpeg image base64
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    
-    const newAttachment = {
-      id: 'scan_' + Date.now(),
-      name: `Scan_${activeTab.toUpperCase()}_${attachments.length + 1}.jpg`,
-      type: 'image/jpeg',
-      size: Math.round((dataUrl.length * 3) / 4), // Approximate bytes
-      dataUrl,
-      uploadedAt: new Date().toISOString()
-    };
-
-    setAttachments(prev => [...prev, newAttachment]);
-    stopCamera();
-  }
-
-  // Handle file uploads
-  function handleFileUpload(e) {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const newAttachment = {
-          id: 'file_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          dataUrl: ev.target.result,
-          uploadedAt: new Date().toISOString()
-        };
-        setAttachments(prev => [...prev, newAttachment]);
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function deleteAttachment(id) {
-    setAttachments(prev => prev.filter(att => att.id !== id));
-  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -272,15 +315,7 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
               />
             </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Cabinet / Kent No.</label>
-              <input 
-                className="glass-input" 
-                value={formData.cabinetNumber} 
-                onChange={e => setFormData({ ...formData, cabinetNumber: e.target.value.toUpperCase() })} 
-                placeholder="e.g. KENT 4" 
-              />
-            </div>
+
 
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>BOX Number *</label>
@@ -290,6 +325,17 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                 onChange={e => setFormData({ ...formData, boxNumber: e.target.value.toUpperCase() })} 
                 placeholder="e.g. BOX 12" 
                 required 
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#1054a8', fontWeight: 600 }}>PER ID</label>
+              <input 
+                className="glass-input" 
+                style={{ borderColor: 'rgba(16, 84, 168, 0.3)', fontFamily: 'monospace', fontWeight: 600, letterSpacing: '0.5px' }}
+                value={formData.personalId} 
+                onChange={e => setFormData({ ...formData, personalId: e.target.value.toUpperCase() })} 
+                placeholder="e.g. ICS-2024-001234" 
               />
             </div>
             
@@ -422,15 +468,12 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
             {(activeTab === 'residence id' || activeTab === 'residence-id') && (
               <>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--accent-blue)' }}>Residence ID No. *</label>
-                  <input 
-                    className="glass-input" 
-                    style={{ borderColor: 'rgba(59, 130, 246, 0.4)' }}
-                    value={formData.residenceIdNumber} 
-                    onChange={e => setFormData({ ...formData, residenceIdNumber: e.target.value.toUpperCase() })} 
-                    placeholder="e.g. RES-110022" 
-                    required
-                  />
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--accent-blue)' }}>Residence ID Type *</label>
+                  <select className="glass-input" style={{ borderColor: 'rgba(59, 130, 246, 0.4)' }} value={formData.residenceIdType} onChange={e => setFormData({ ...formData, residenceIdType: e.target.value })}>
+                    <option value="">SELECT ID TYPE</option>
+                    <option value="PERMANENT">Permanent ID</option>
+                    <option value="TEMPORARY">Temporary ID</option>
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--accent-blue)' }}>Company Name</label>
@@ -470,6 +513,7 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                   placeholder="e.g. ER-ID-123456" 
                   required
                 />
+
               </div>
             )}
 
@@ -498,188 +542,227 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
                   placeholder="e.g. YC-554433" 
                   required
                 />
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#ca8a04' }}>Yellow Card Type</label>
+                  <select className="glass-input" value={formData.yellowCardType} onChange={e => setFormData({ ...formData, yellowCardType: e.target.value })}>
+                    <option value="">SELECT TYPE</option>
+                    <option value="BY_BIRTH_DESCENT">By Birth / Descent</option>
+                    <option value="BY_MARRIAGE">By Marriage</option>
+                    <option value="BY_LEGAL_ADOPTION">By Legal Adoption</option>
+                    <option value="BY_SPECIAL_STATUS">By Special Status / Judicial Restitution</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'visa' && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#34d399' }}>Visa Number *</label>
+                <input 
+                  className="glass-input" 
+                  style={{ borderColor: 'rgba(52, 211, 153, 0.4)' }}
+                  value={formData.visaNumber} 
+                  onChange={e => setFormData({ ...formData, visaNumber: e.target.value.toUpperCase() })} 
+                  placeholder="e.g. V-123456" 
+                  required
+                />
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#34d399' }}>Visa Type *</label>
+                  <select className="glass-input" style={{ borderColor: 'rgba(52, 211, 153, 0.4)' }} value={formData.visaType} onChange={e => setFormData({ ...formData, visaType: e.target.value })}>
+                    <option value="">SELECT VISA TYPE</option>
+                    <option value="TOURIST">Tourist Visa</option>
+                    <option value="BUSINESS">Business Visa</option>
+                    <option value="CONFERENCE">Conference Visa</option>
+                    <option value="TRANSIT">Transit Visa</option>
+                    <option value="STUDENT">Student Visa</option>
+                    <option value="DIPLOMATIC">Diplomatic Visa</option>
+                    <option value="OFFICIAL">Official Visa</option>
+                    <option value="COURTESY">Courtesy Visa</option>
+                    <option value="INVESTMENT">Investment Visa</option>
+                    <option value="WORK">Work Visa</option>
+                    <option value="GOVERNMENT_EMPLOYMENT">Government Employment Visa</option>
+                    <option value="NGO">NGO / Humanitarian Visa</option>
+                    <option value="JOURNALIST">Journalist / Media Visa</option>
+                    <option value="RESEARCH">Research Visa</option>
+                    <option value="MEDICAL">Medical Visa</option>
+                    <option value="RELIGIOUS">Religious Visa</option>
+                    <option value="CREW">Crew Visa</option>
+                    <option value="REFUGEE_TRAVEL">Refugee Travel Document</option>
+                    <option value="ON_ARRIVAL">Visa on Arrival</option>
+                    <option value="E_VISA">e-Visa</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
 
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border-glass)', margin: '10px 0' }} />
-
-          {/* Attachments Section */}
-          <div>
-            <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Attached Documents ({attachments.length})
-            </h4>
-
-            {/* Document upload options */}
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-              <button 
-                type="button" 
-                className="glass-button" 
-                style={{ flex: 1 }}
-                onClick={() => fileInputRef.current.click()}
-              >
-                <Upload size={18} /> Upload Files
-              </button>
-              
-              <button 
-                type="button" 
-                className="glass-button" 
-                style={{ flex: 1, background: isCameraActive ? 'var(--accent-danger)' : 'var(--accent-blue)', color: '#fff', boxShadow: isCameraActive ? 'none' : '0 0 10px rgba(59, 130, 246, 0.2)' }}
-                onClick={isCameraActive ? stopCamera : startCamera}
-              >
-                <Camera size={18} /> {isCameraActive ? 'Close Camera' : 'Scan via Camera'}
-              </button>
-            </div>
-
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
-              multiple 
-              accept="image/*,application/pdf" 
-              onChange={handleFileUpload} 
-            />
-
-            {/* Camera Viewport */}
-            {isCameraActive && (
-              <div className="glass-panel" style={{ 
-                padding: '16px', 
-                marginBottom: '20px', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center',
-                gap: '12px',
-                background: 'rgba(0,0,0,0.5)',
-                border: '1px solid var(--accent-blue)'
-              }}>
-                <div style={{ position: 'relative', width: '100%', maxWidth: '640px', height: '360px', background: '#000', borderRadius: '8px', overflow: 'hidden' }}>
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                  {/* Camera overlay box target for scan */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '15%',
-                    left: '10%',
-                    right: '10%',
-                    bottom: '15%',
-                    border: '2px dashed var(--accent-emerald)',
-                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
-                    borderRadius: '8px',
-                    pointerEvents: 'none'
-                  }}>
-                    <div style={{ color: 'var(--accent-emerald)', fontSize: '0.8rem', textAlign: 'center', background: 'rgba(5, 10, 21, 0.7)', padding: '4px', width: 'fit-content', margin: '8px auto', borderRadius: '4px' }}>
-                      ALIGN DOCUMENT HERE
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <button type="button" className="glass-button" onClick={capturePhoto} style={{ padding: '10px 32px' }}>
-                    <Check size={18} /> Snap Document
-                  </button>
-                  <button type="button" className="glass-button danger" onClick={stopCamera}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {cameraError && (
-              <div style={{ color: 'var(--accent-danger)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontSize: '0.9rem' }}>
-                <AlertCircle size={16} />
-                <span>{cameraError}</span>
-              </div>
-            )}
-
-            {/* List of Attachments */}
-            {attachments.length === 0 ? (
-              <div style={{ 
-                border: '2px dashed var(--border-glass)', 
-                borderRadius: '8px', 
-                padding: '32px', 
-                textAlign: 'center', 
-                color: 'var(--text-secondary)' 
-              }}>
-                <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                <p style={{ margin: 0, fontSize: '0.9rem' }}>No scanned files attached yet. Upload or scan above.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-                {attachments.map((att) => {
-                  const isImage = att.type.startsWith('image/');
-                  return (
-                    <div key={att.id} className="glass-panel" style={{ 
-                      padding: '12px', 
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      background: 'rgba(0,0,0,0.2)'
+          {/* Structured Document Attachments */}
+          {(DOC_TYPES_CONFIG[activeTab] || activeTab === 'residence-id') && (
+            <div style={{ marginTop: '24px' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                📎 Structured Document Attachments
+              </h4>
+              <div style={{ borderRadius: '12px', overflow: 'hidden', border: `1px solid ${activeTab === 'eritrean-id' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(59, 130, 246, 0.2)'}` }}>
+                
+                {/* Predefined Document Rows */}
+                {currentDocTypes ? (
+                  <>
+                    {/* Header */}
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
+                      background: 'linear-gradient(135deg, #1e293b, #334155)',
+                      padding: '12px 16px',
+                      fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px',
+                      color: '#94a3b8'
                     }}>
-                      {/* Delete button */}
-                      <button 
-                        type="button"
-                        onClick={() => deleteAttachment(att.id)}
-                        style={{
-                          position: 'absolute',
-                          top: '6px',
-                          right: '6px',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: 'rgba(239, 68, 68, 0.8)',
-                          color: '#fff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          zIndex: 10
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
+                      <span>Category</span>
+                      <span>Document Type</span>
+                      <span style={{ textAlign: 'center' }}>Upload Status</span>
+                      <span style={{ textAlign: 'center' }}>Actions</span>
+                    </div>
 
-                      {/* Preview */}
-                      <div style={{ 
-                        width: '100%', 
-                        height: '110px', 
-                        borderRadius: '4px', 
-                        overflow: 'hidden',
-                        background: 'rgba(255,255,255,0.03)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        {isImage ? (
-                          <img 
-                            src={att.dataUrl} 
-                            alt={att.name} 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                          />
-                        ) : (
-                          <FileText size={48} style={{ color: 'var(--accent-blue)', opacity: 0.8 }} />
-                        )}
-                      </div>
+                    {currentDocTypes.map((doc) => {
+                      const docAttachment = attachments.find(att => att.docType === doc.key);
+                      return (
+                        <div key={doc.key} style={{
+                          display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
+                          padding: '14px 16px', alignItems: 'center',
+                          borderTop: '1px solid rgba(255,255,255,0.06)',
+                          background: 'rgba(0,0,0,0.15)'
+                        }}>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>{doc.category}</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>{doc.label}</span>
+                          <span style={{
+                            textAlign: 'center', fontSize: '0.78rem', fontStyle: 'italic',
+                            color: docAttachment ? '#34d399' : '#94a3b8',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 8px'
+                          }}>
+                            {docAttachment ? docAttachment.name : 'NOT PROVIDED'}
+                          </span>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                            {docAttachment && (
+                              <button type="button" onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = docAttachment.dataUrl;
+                                a.download = docAttachment.name;
+                                a.click();
+                              }} title="Download" style={{
+                                width: '30px', height: '30px', borderRadius: '6px',
+                                background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)',
+                                color: '#a78bfa', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
+                              }}>
+                                <Download size={14} />
+                              </button>
+                            )}
+                            <button type="button" onClick={() => handlePredefinedUploadClick(doc.key, doc.label, doc.category)} title="Upload" style={{
+                              width: '30px', height: '30px', borderRadius: '6px',
+                              background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)',
+                              color: '#34d399', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
+                            }}>
+                              <Upload size={14} />
+                            </button>
+                            {docAttachment && (
+                              <button type="button" onClick={() => setAttachments(prev => prev.filter(att => att.docType !== doc.key))} title="Remove" style={{
+                                width: '30px', height: '30px', borderRadius: '6px',
+                                background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#f87171', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
+                              }}>
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <div style={{ 
+                    padding: '24px', 
+                    textAlign: 'center', 
+                    color: 'var(--text-secondary)',
+                    background: 'rgba(0,0,0,0.15)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertTriangle size={24} style={{ color: 'var(--accent-gold)' }} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Please select Residence ID Type (Permanent / Temporary) to load required document slots.</span>
+                  </div>
+                )}
 
-                      {/* File Details */}
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {att.name}
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>
-                          {Math.round(att.size / 1024)} KB
-                        </span>
+                {/* Other Documents Section */}
+                <div style={{
+                  padding: '10px 16px',
+                  background: 'linear-gradient(135deg, #1e293b, #334155)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  borderTop: '1px solid rgba(255,255,255,0.08)'
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8' }}>📎 Other Documents</span>
+                  <button type="button" onClick={handleOtherUploadClick} style={{
+                    padding: '6px 16px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
+                    background: 'rgba(255,255,255,0.9)', color: '#0f172a', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}>+ ADD</button>
+                </div>
+
+                {/* Other Documents Header */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
+                  padding: '8px 16px', fontSize: '0.68rem', fontWeight: 600,
+                  textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b',
+                  borderTop: '1px solid rgba(255,255,255,0.04)'
+                }}>
+                  <span>Category</span>
+                  <span>Document Type</span>
+                  <span style={{ textAlign: 'center' }}>Upload Status</span>
+                  <span style={{ textAlign: 'center' }}>Actions</span>
+                </div>
+
+                {attachments.filter(att => !att.docType).length === 0 ? (
+                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                    NO ADDITIONAL DOCUMENTS ADDED
+                  </div>
+                ) : (
+                  attachments.filter(att => !att.docType).map(doc => (
+                    <div key={doc.id} style={{
+                      display: 'grid', gridTemplateColumns: '120px 1fr 160px 120px',
+                      padding: '10px 16px', alignItems: 'center',
+                      borderTop: '1px solid rgba(255,255,255,0.04)',
+                      background: 'rgba(0,0,0,0.1)'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>OTHER</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
+                      <span style={{ textAlign: 'center', fontSize: '0.78rem', color: '#34d399' }}>UPLOADED</span>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <button type="button" onClick={() => {
+                          const a = document.createElement('a'); a.href = doc.dataUrl; a.download = doc.name; a.click();
+                        }} title="Download" style={{
+                          width: '30px', height: '30px', borderRadius: '6px',
+                          background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)',
+                          color: '#a78bfa', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
+                        }}>
+                          <Download size={14} />
+                        </button>
+                        <button type="button" onClick={() => setAttachments(prev => prev.filter(d => d.id !== doc.id))} title="Remove" style={{
+                          width: '30px', height: '30px', borderRadius: '6px',
+                          background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                          color: '#f87171', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem'
+                        }}>
+                          <X size={14} />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           </div> {/* End Scrollable Container */}
 

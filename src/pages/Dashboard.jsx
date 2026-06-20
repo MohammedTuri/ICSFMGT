@@ -137,8 +137,8 @@ export default function Dashboard() {
           (item.passportNumber && item.passportNumber.toUpperCase().includes(term)) ||
           (item.requestNumber && item.requestNumber.toUpperCase().includes(term)) ||
           (item.boxNumber && item.boxNumber.toUpperCase().includes(term)) ||
-          (item.shelfNumber && item.shelfNumber.toUpperCase().includes(term)) ||
-          (item.cabinetNumber && item.cabinetNumber.toUpperCase().includes(term))
+          (item.personalId && item.personalId.toUpperCase().includes(term)) ||
+          (item.shelfNumber && item.shelfNumber.toUpperCase().includes(term))
         ) {
           results.push({ ...item, category, storeName });
         }
@@ -241,7 +241,6 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       <span>Passport: <strong style={{ fontFamily: 'monospace' }}>{rec.passportNumber}</strong></span>
                       {rec.shelfNumber && <span>Shelf: <strong>{rec.shelfNumber}</strong></span>}
-                      {rec.cabinetNumber && <span>Cabinet: <strong>{rec.cabinetNumber}</strong></span>}
                       <span>Box: <strong>{rec.boxNumber}</strong></span>
                     </div>
                   </div>
@@ -463,8 +462,8 @@ export default function Dashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.9rem', marginBottom: '24px' }}>
               <div><strong style={{ color: 'var(--text-secondary)' }}>Full Name:</strong> {selectedRecord.fullName}</div>
               <div><strong style={{ color: 'var(--text-secondary)' }}>Shelf Number:</strong> {selectedRecord.shelfNumber || '—'}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Cabinet / Kent No.:</strong> {selectedRecord.cabinetNumber || '—'}</div>
               <div><strong style={{ color: 'var(--text-secondary)' }}>BOX Number:</strong> {selectedRecord.boxNumber}</div>
+              <div><strong style={{ color: '#1054a8' }}>PER ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{selectedRecord.personalId || '—'}</span></div>
               <div><strong style={{ color: 'var(--text-secondary)' }}>Passport Number:</strong> <span style={{ fontFamily: 'monospace' }}>{selectedRecord.passportNumber}</span></div>
               <div><strong style={{ color: 'var(--text-secondary)' }}>Sex:</strong> {selectedRecord.sex}</div>
               <div><strong style={{ color: 'var(--text-secondary)' }}>Citizenship:</strong> {selectedRecord.citizenship || 'N/A'}</div>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Download, Upload, Search, Plus, Edit, Trash2, Eye, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Download, Upload, Search, Plus, Edit, Trash2, Eye, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X, BarChart2, Fingerprint, Award, FileWarning, IdCard, Globe, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getAllRecords, addRecord, updateRecord, deleteRecord, importRecords } from '../utils/db';
 import RecordFormModal from '../components/RecordFormModal';
 
 export default function CategoryExplorer({ category }) {
+  const navigate = useNavigate();
   const [records, setRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,11 +56,11 @@ export default function CategoryExplorer({ category }) {
       const term = search.toUpperCase();
       result = result.filter(r => 
         (r.fullName && r.fullName.toUpperCase().includes(term)) ||
+        (r.personalId && r.personalId.toUpperCase().includes(term)) ||
         (r.passportNumber && r.passportNumber.toUpperCase().includes(term)) ||
         (r.boxNumber && r.boxNumber.toUpperCase().includes(term)) ||
         (r.requestNumber && r.requestNumber.toUpperCase().includes(term)) ||
-        (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term)) ||
-        (r.cabinetNumber && r.cabinetNumber.toUpperCase().includes(term))
+        (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term))
       );
     }
 
@@ -67,8 +69,8 @@ export default function CategoryExplorer({ category }) {
       let valA = (a[field] || '').toString().toUpperCase();
       let valB = (b[field] || '').toString().toUpperCase();
       
-      // Numeric sort for box/shelf/cabinet numbers if they contain digits
-      if (field === 'boxNumber' || field === 'shelfNumber' || field === 'cabinetNumber') {
+      // Numeric sort for box/shelf numbers if they contain digits
+      if (field === 'boxNumber' || field === 'shelfNumber') {
         const numA = parseInt(valA.replace(/\D/g, '')) || 0;
         const numB = parseInt(valB.replace(/\D/g, '')) || 0;
         if (numA !== numB) return ascending ? numA - numB : numB - numA;
@@ -142,7 +144,7 @@ export default function CategoryExplorer({ category }) {
     }
 
     // Determine headers based on category
-    let headers = ['Shelf No.', 'Cabinet/Kent No.', 'BOX Number', 'Full Name', 'Sex', 'Citizenship'];
+    let headers = ['Shelf No.', 'BOX Number', 'Personal ID', 'Full Name', 'Sex', 'Citizenship'];
     if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') headers.push('EOID Number');
     if (category === 'residence-id') headers.push('Residence ID No.', 'Company Name');
     if (category === 'etd') headers.push('ETD Number');
@@ -155,8 +157,8 @@ export default function CategoryExplorer({ category }) {
     const data = records.map(r => {
       const row = {
         'Shelf No.': r.shelfNumber || '',
-        'Cabinet/Kent No.': r.cabinetNumber || '',
         'BOX Number': r.boxNumber || '',
+        'Personal ID': r.personalId || '',
         'Full Name': r.fullName || '',
         'Sex': r.sex || '',
         'Citizenship': r.citizenship || '',
@@ -262,8 +264,8 @@ export default function CategoryExplorer({ category }) {
             const val = String(row[colIdx] || '').trim();
             const hLower = String(h || '').toLowerCase().trim();
 
-            if (hLower.includes('shelf')) record.shelfNumber = val.toUpperCase();
-            else if (hLower.includes('cabinet') || hLower.includes('kent')) record.cabinetNumber = val.toUpperCase();
+            if (hLower.includes('personal') || hLower.includes('personal id') || hLower.includes('personal_id')) record.personalId = val.toUpperCase();
+            else if (hLower.includes('shelf')) record.shelfNumber = val.toUpperCase();
             else if (hLower.includes('box')) record.boxNumber = val.toUpperCase();
             else if (hLower.includes('name') && !hLower.includes('company')) record.fullName = val.toUpperCase();
             else if (hLower.includes('sex') || hLower.includes('gender')) record.sex = val.toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
@@ -290,7 +292,6 @@ export default function CategoryExplorer({ category }) {
               duplicateCount++;
             } else {
               if (!record.shelfNumber) record.shelfNumber = '';
-              if (!record.cabinetNumber) record.cabinetNumber = '';
               if (!record.boxNumber) record.boxNumber = 'UNBOXED';
               record.attachments = [];
               importedRecords.push(record);
@@ -396,10 +397,6 @@ export default function CategoryExplorer({ category }) {
               <Plus size={18} /> Add Entry
             </button>
           )}
-          
-          <button className="glass-button" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#fff', border: '1px solid rgba(59, 130, 246, 0.3)', boxShadow: 'none' }} onClick={handleExportExcel}>
-            <Download size={18} /> Export Excel
-          </button>
 
           {currentUser && currentUser.role !== 'VIEWER' && (
             <label className="glass-button" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)', boxShadow: 'none', cursor: 'pointer' }}>
@@ -410,246 +407,106 @@ export default function CategoryExplorer({ category }) {
         </div>
       </div>
 
-      {/* Search Widget */}
-      <div className="glass-panel" style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Search size={20} style={{ color: 'var(--text-secondary)' }} />
-        <input 
-          className="glass-input" 
-          placeholder="Filter this division by Box, Name, Passport or Request Number..." 
-          style={{ border: 'none', background: 'transparent', padding: '8px 0', fontSize: '1rem', width: '100%', outline: 'none', boxShadow: 'none' }}
-          value={searchTerm}
-          onChange={handleSearchChange}
-        />
-      </div>
+      {/* Informational Panel instead of Data Table */}
+      <div style={{ margin: '20px 0' }}>
+        {(() => {
+          const getModuleConfig = (moduleKey) => {
+            const configs = {
+              'visa': {
+                title: 'VISA Files Division',
+                desc: 'A Visa is an official document or endorsement on a passport indicating that the holder is allowed to enter, leave, or stay for a specified period of time in a country. The VISA Files module manages incoming entry visa records, extension timelines, and stay permit durations, helping officers track and oversee visa classifications and validity states for all foreign nationals.',
+                color: '#10b981',
+                icon: <FileText size={24} />
+              },
+              'eoid-normal': {
+                title: 'Ethiopian Origin ID — Normal File',
+                desc: 'An Ethiopian Origin ID Card (commonly known as the Yellow Card) is issued to foreign nationals of Ethiopian origin, granting them various rights and privileges similar to citizens, such as visa-free entry and residence. This module manages registration files, family lineages, citizenship dossiers, and biometric credentials for adult applicants.',
+                color: '#f59e0b',
+                icon: <Fingerprint size={24} />
+              },
+              'eoid-underage': {
+                title: 'Ethiopian Origin ID — Under-Age File',
+                desc: 'Specifically manages registration files and identification dossiers for minor applicants under the age of 18 of Ethiopian origin. This division handles birth certificates, legal guardian declarations, and child identification records to document family linkage credentials.',
+                color: '#f97316',
+                icon: <Fingerprint size={24} />
+              },
+              'residence-id': {
+                title: 'Residence ID File Division',
+                desc: 'A Residence ID Card grants a foreign national the legal right to reside in the country under specified conditions (such as work, study, or retirement). This module archives residential permits, employer/sponsor linkages, company registrations, and validity certificates for foreign residents.',
+                color: '#3b82f6',
+                icon: <Award size={24} />
+              },
+              'etd': {
+                title: 'Emergency Travel Document File',
+                desc: 'An Emergency Travel Document (ETD) is a temporary one-way travel pass issued to individuals who need to travel urgently but do not possess a valid passport (due to loss, theft, or expiration). This module documents emergency transit passes, emergency contact directories, departure approvals, and temporary travel permits issued to travelers.',
+                color: '#a5b4fc',
+                icon: <FileWarning size={24} />
+              },
+              'eritrean-id': {
+                title: 'Eritrean ID File Division',
+                desc: 'A specialized verification registry for individuals of Eritrean origin. This module coordinates registry archives, identity folders, family heritage, background verification dossiers, and immigration status credentials for Eritrean origin identification.',
+                color: '#8b5cf6',
+                icon: <IdCard size={24} />
+              },
+              'alien-passport': {
+                title: 'Alien Passport File Division',
+                desc: 'An Alien Passport is a travel document issued to stateless persons or foreign residents who are unable to obtain a passport from their country of nationality. This module tracks foreign passport registrations, stateless resident dossiers, alien identification folders, and entry-exit histories.',
+                color: '#0ea5e9',
+                icon: <Globe size={24} />
+              },
+              'yellow-card': {
+                title: 'Yellow Card File Division',
+                desc: 'Administers registration timelines, validation records, renewal parameters, and dossier credentials for Yellow Card identification holders. It organizes files to ensure compliant renewal histories and valid identity status checks.',
+                color: '#ca8a04',
+                icon: <CreditCard size={24} />
+              }
+            };
+            return configs[moduleKey] || {
+              title: 'Immigration Division Module',
+              desc: 'Core file structuring registry for FSD division dossiers.',
+              color: '#64748b',
+              icon: <FileText size={24} />
+            };
+          };
 
-      {/* Data Table */}
-      <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table className="glass-table">
-          <thead>
-            <tr>
-              <th onClick={() => handleSort('shelfNumber')} style={{ cursor: 'pointer' }}>
-                Shelf No. <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
-              </th>
-              <th onClick={() => handleSort('cabinetNumber')} style={{ cursor: 'pointer' }}>
-                Cabinet/Kent No. <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
-              </th>
-              <th onClick={() => handleSort('boxNumber')} style={{ cursor: 'pointer' }}>
-                BOX Number <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
-              </th>
-              <th onClick={() => handleSort('fullName')} style={{ cursor: 'pointer' }}>
-                Full Name <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: '4px' }} />
-              </th>
-              <th>Sex</th>
-              <th>Citizenship</th>
-              
-              {/* Category specific headers */}
-              {(category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') && <th>EOID Number</th>}
-              {category === 'residence-id' && (
-                <>
-                  <th>Residence ID No.</th>
-                  <th>Company Name</th>
-                </>
-              )}
-              {category === 'etd' && <th>ETD Number</th>}
-              {category === 'eritrean-id' && <th>Eritrean ID No.</th>}
-              {category === 'alien-passport' && <th>Alien Passport No.</th>}
-              {category === 'yellow-card' && <th>Yellow Card No.</th>}
+          const currentConfig = getModuleConfig(category);
 
-              <th>Passport Number</th>
-              <th>Request Number</th>
-              <th>Date</th>
-              <th>Service Provided</th>
-              <th>Scans</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRecords.length === 0 ? (
-              <tr>
-                <td colSpan={category === 'residence-id' ? 14 : 13} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  No records found. Click "Add Entry" or upload an Excel file to populate.
-                </td>
-              </tr>
-            ) : (
-              filteredRecords.map((r) => {
-                const isExpanded = expandedRecordId === r.id;
-                const hasAttachments = r.attachments && r.attachments.length > 0;
-                return (
-                  <>
-                    <tr key={r.id} style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--border-glass)' }}>
-                      <td>{r.shelfNumber || '—'}</td>
-                      <td>{r.cabinetNumber || '—'}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.boxNumber}</td>
-                      <td>
-                        <span style={{ fontWeight: 500 }}>{r.fullName}</span>
-                      </td>
-                      <td>{r.sex}</td>
-                      <td>{r.citizenship || 'N/A'}</td>
-
-                      {/* Category specific cells */}
-                      {(category === 'eoid' || category === 'eoid-normal') && <td style={{ fontFamily: 'monospace', color: 'var(--accent-gold)' }}>{r.eoidNumber}</td>}
-                      {category === 'eoid-underage' && <td style={{ fontFamily: 'monospace', color: '#f97316' }}>{r.eoidNumber}</td>}
-                      {category === 'residence-id' && (
-                        <>
-                          <td style={{ fontFamily: 'monospace', color: 'var(--accent-blue)' }}>{r.residenceIdNumber}</td>
-                          <td>{r.companyName || 'N/A'}</td>
-                        </>
-                      )}
-                      {category === 'etd' && <td style={{ fontFamily: 'monospace', color: 'rgba(165, 180, 252, 1)' }}>{r.etdNumber}</td>}
-                      {category === 'eritrean-id' && <td style={{ fontFamily: 'monospace', color: '#8b5cf6' }}>{r.eritreanIdNumber}</td>}
-                      {category === 'alien-passport' && <td style={{ fontFamily: 'monospace', color: '#0ea5e9' }}>{r.alienPassportNumber}</td>}
-                      {category === 'yellow-card' && <td style={{ fontFamily: 'monospace', color: '#ca8a04' }}>{r.yellowCardNumber}</td>}
-
-                      <td style={{ fontFamily: 'monospace' }}>{r.passportNumber}</td>
-                      <td>{r.requestNumber || 'N/A'}</td>
-                      <td>{r.date}</td>
-                      <td style={{ fontSize: '0.85rem' }}>{r.serviceProvided || 'N/A'}</td>
-                      
-                      {/* Attachments status indicator */}
-                      <td>
-                        <span 
-                          onClick={() => setExpandedRecordId(isExpanded ? null : r.id)}
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '6px', 
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            color: hasAttachments ? 'var(--accent-emerald)' : 'var(--accent-danger)',
-                            fontWeight: 600
-                          }}
-                        >
-                          {hasAttachments ? (
-                            <>
-                              <CheckCircle size={14} /> {r.attachments.length} file(s)
-                            </>
-                          ) : (
-                            <>
-                              <AlertTriangle size={14} /> Missing
-                            </>
-                          )}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '8px' }}>
-                          <button 
-                            className="glass-button" 
-                            style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', boxShadow: 'none' }}
-                            onClick={() => setExpandedRecordId(isExpanded ? null : r.id)}
-                            title="View Attachments"
-                          >
-                            <Eye size={15} />
-                          </button>
-                          {currentUser && currentUser.role !== 'VIEWER' && (
-                            <button 
-                              className="glass-button" 
-                              style={{ padding: '6px 10px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', boxShadow: 'none' }}
-                              onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
-                              title="Edit"
-                            >
-                              <Edit size={15} />
-                            </button>
-                          )}
-                          {currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR') && (
-                            <button 
-                              className="glass-button danger" 
-                              style={{ padding: '6px 10px' }}
-                              onClick={() => handleDeleteRecord(r.id, r.fullName)}
-                              title="Delete"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Expanded Row for Evidence Scans */}
-                    {isExpanded && (
-                      <tr style={{ background: 'rgba(5, 10, 21, 0.3)' }}>
-                        <td colSpan={category === 'residence-id' ? 14 : 13} style={{ padding: '24px 32px' }}>
-                          <div className="glass-panel animate-fade-in" style={{ padding: '20px', border: '1px solid var(--border-glass)', background: 'rgba(13, 22, 43, 0.8)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                              <h4 style={{ margin: 0, textTransform: 'uppercase', fontSize: '0.85rem', color: 'var(--text-secondary)', letterSpacing: '1px' }}>
-                                File Scan Management & Evidence Explorer
-                              </h4>
-                              {currentUser && currentUser.role !== 'VIEWER' && (
-                                <button 
-                                  className="glass-button" 
-                                  style={{ padding: '4px 10px', fontSize: '0.75rem', height: 'fit-content' }}
-                                  onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
-                                >
-                                  Edit & Scan New Documents
-                                </button>
-                              )}
-                            </div>
-
-                            {(!r.attachments || r.attachments.length === 0) ? (
-                              <div style={{ border: '1px dashed var(--accent-danger)', color: 'var(--accent-danger)', padding: '16px', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <AlertTriangle size={20} />
-                                <span><strong>No scanned evidence files attached!</strong> The user has not attached any Passport or Visa documents. Click "Edit & Scan" to attach scans.</span>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px' }}>
-                                {r.attachments.map(att => (
-                                  <div key={att.id} className="glass-panel" style={{ padding: '10px', background: 'rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    <div 
-                                      onClick={() => setPreviewAttachment(att)}
-                                      style={{ height: '110px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', borderRadius: '4px', overflow: 'hidden', cursor: 'pointer' }}
-                                      title="Click to view full screen"
-                                    >
-                                      {att.type.startsWith('image/') ? (
-                                        <img src={att.dataUrl} alt={att.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      ) : (
-                                        <FileText size={40} style={{ color: 'var(--accent-blue)' }} />
-                                      )}
-                                    </div>
-                                    <div style={{ overflow: 'hidden' }}>
-                                      <span style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={att.name}>
-                                        {att.name}
-                                      </span>
-                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>
-                                        {Math.round(att.size / 1024)} KB
-                                      </span>
-                                    </div>
-                                    <a 
-                                      href={att.dataUrl} 
-                                      download={att.name}
-                                      style={{ 
-                                        textDecoration: 'none', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        gap: '6px', 
-                                        fontSize: '0.75rem', 
-                                        color: 'var(--accent-emerald)', 
-                                        background: 'rgba(16, 185, 129, 0.1)',
-                                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                                        borderRadius: '4px',
-                                        padding: '6px',
-                                        fontWeight: 'bold',
-                                        transition: 'all 0.2s'
-                                      }}
-                                      className="download-btn-hover"
-                                    >
-                                      <FileDown size={14} /> Download Scan
-                                    </a>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+          return (
+            <div className="glass-panel animate-fade-in" style={{ 
+              padding: '40px 32px', 
+              display: 'flex', 
+              gap: '28px',
+              alignItems: 'center', 
+              background: 'rgba(15, 23, 42, 0.4)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: '16px',
+            }}>
+              <div style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '16px',
+                background: `${currentConfig.color}15`,
+                border: `1px solid ${currentConfig.color}40`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: currentConfig.color,
+                boxShadow: `0 0 20px ${currentConfig.color}20`,
+                flexShrink: 0
+              }}>
+                {currentConfig.icon}
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 8px 0', fontWeight: 600, fontSize: '1.45rem', color: '#fff', letterSpacing: '0.5px' }}>
+                  {currentConfig.title}
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: '1.6', margin: 0 }}>
+                  {currentConfig.desc}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Edit/Add Modal */}

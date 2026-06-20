@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Lock, Mail, AlertCircle, ShieldCheck, Fingerprint, FileText, Award, FileWarning, ChevronRight } from 'lucide-react';
-import { getAllRecords } from '../utils/db';
+import { getAllRecords, updateRecord } from '../utils/db';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -33,10 +33,32 @@ export default function Login() {
         return;
       }
 
-      if (user.password !== password) {
-        setError('Incorrect password. Please try again.');
+      if (user.locked) {
+        setError('Your account is locked. Please contact the administrator.');
         setLoading(false);
         return;
+      }
+
+      if (user.password !== password) {
+        const attempts = (user.loginAttempts || 0) + 1;
+        const updatedUser = { ...user, loginAttempts: attempts };
+        if (attempts >= 4) {
+          updatedUser.locked = true;
+        }
+        await updateRecord('users', updatedUser);
+
+        if (attempts >= 4) {
+          setError('Your account is locked. Please contact the administrator.');
+        } else {
+          setError(`Incorrect password. Please try again. (${4 - attempts} attempts remaining)`);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Reset attempts on successful login
+      if (user.loginAttempts > 0) {
+        await updateRecord('users', { ...user, loginAttempts: 0 });
       }
 
       localStorage.setItem('ics_auth_user', JSON.stringify({
