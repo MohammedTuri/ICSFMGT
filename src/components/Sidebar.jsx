@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BarChart2, FileText, Fingerprint, Award, FileWarning, Users, LogOut, Shield, ShieldAlert, UserCheck, Eye, IdCard, Globe, CreditCard, ChevronDown, ChevronRight, Baby } from 'lucide-react';
+import { LayoutDashboard, BarChart2, FileText, Fingerprint, Award, FileWarning, Users, LogOut, Shield, ShieldAlert, UserCheck, Eye, IdCard, Globe, CreditCard, Baby, ClipboardList } from 'lucide-react';
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(null);
-  const [eoidExpanded, setEoidExpanded] = useState(false);
 
   useEffect(() => {
     const session = JSON.parse(localStorage.getItem('ics_auth_user'));
@@ -14,12 +13,6 @@ export default function Sidebar() {
   }, []);
 
   // Auto-expand EOID if on an eoid sub-route
-  useEffect(() => {
-    if (location.pathname.startsWith('/eoid')) {
-      setEoidExpanded(true);
-    }
-  }, [location.pathname]);
-
   const handleLogout = () => {
     localStorage.removeItem('ics_auth_user');
     navigate('/login');
@@ -36,6 +29,7 @@ export default function Sidebar() {
   const links = [
     { to: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', key: 'dashboard', activeColor: 'var(--accent-emerald)' },
     { to: '/reports', icon: <BarChart2 size={20} />, label: 'Reports & Analytics', key: 'reports', activeColor: 'var(--accent-blue)' },
+    { to: '/audit-log', icon: <ClipboardList size={20} />, label: 'Audit Log', key: 'audit-log', activeColor: 'var(--accent-emerald)', adminOnly: true },
     { to: '/visa', icon: <FileText size={20} />, label: 'VISA Files', key: 'visa', activeColor: 'var(--accent-emerald)' },
     // EOID is handled separately as a group
     { to: '/residence-id', icon: <Award size={20} />, label: 'Residence ID File', key: 'residence-id', activeColor: 'var(--accent-emerald)' },
@@ -47,6 +41,8 @@ export default function Sidebar() {
 
   // Determine access
   const allowed = currentUser?.allowedDivisions || [];
+  const isAdmin = currentUser && currentUser.role === 'ADMIN';
+  
   const canAccessDivision = (key) => {
     if (!currentUser) return false;
     if (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR') return true;
@@ -54,7 +50,8 @@ export default function Sidebar() {
   };
 
   const filteredLinks = links.filter(link => {
-    if (link.key === 'dashboard' || link.key === 'reports') return true;
+    if (link.adminOnly && !isAdmin) return false;
+    if (link.key === 'dashboard' || link.key === 'reports' || link.key === 'audit-log') return true;
     return canAccessDivision(link.key);
   });
 
@@ -62,11 +59,11 @@ export default function Sidebar() {
   const canSeeUnderageEoid = canAccessDivision('eoid-underage');
   const canSeeAnyEoid = canSeeNormalEoid || canSeeUnderageEoid;
 
-  const isAdmin = currentUser && currentUser.role === 'ADMIN';
 
-  // Find where to inject EOID in the list (between visa and residence-id)
-  const beforeEoid = filteredLinks.slice(0, filteredLinks.findIndex(l => l.key === 'residence-id'));
-  const afterEoid = filteredLinks.slice(filteredLinks.findIndex(l => l.key === 'residence-id'));
+  // Find where to inject EOID in the list (after visa)
+  const eoidInsertIndex = filteredLinks.findIndex(l => l.key === 'visa');
+  const beforeEoid = eoidInsertIndex >= 0 ? filteredLinks.slice(0, eoidInsertIndex + 1) : filteredLinks;
+  const afterEoid = eoidInsertIndex >= 0 ? filteredLinks.slice(eoidInsertIndex + 1) : [];
 
   const navLinkStyle = (isActive, customColor = 'var(--accent-emerald)') => {
     let bg = 'rgba(16, 185, 129, 0.1)';
@@ -136,82 +133,15 @@ export default function Sidebar() {
         {/* Links before EOID */}
         {beforeEoid.map(renderLink)}
 
-        {/* Ethiopian Origin ID — collapsible group */}
+        {/* Ethiopian Origin ID */}
         {canSeeAnyEoid && (
-          <div>
-            {/* Parent toggle button */}
-            <button
-              onClick={() => setEoidExpanded(prev => !prev)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                color: location.pathname.startsWith('/eoid') ? 'var(--accent-gold)' : 'var(--text-secondary)',
-                background: location.pathname.startsWith('/eoid') ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                border: location.pathname.startsWith('/eoid') ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid transparent',
-                boxShadow: location.pathname.startsWith('/eoid') ? '0 0 12px rgba(245,158,11,0.15)' : 'none',
-                width: '100%',
-                cursor: 'pointer',
-                fontWeight: location.pathname.startsWith('/eoid') ? 600 : 500,
-                fontSize: '1rem',
-                transition: 'all 0.2s ease',
-                textAlign: 'left'
-              }}
-            >
-              <Fingerprint size={20} />
-              <span style={{ flex: 1 }}>Ethiopian Origin ID File</span>
-              {eoidExpanded
-                ? <ChevronDown size={16} style={{ flexShrink: 0 }} />
-                : <ChevronRight size={16} style={{ flexShrink: 0 }} />
-              }
-            </button>
-
-            {/* Sub-links with smooth animation */}
-            <div style={{
-              overflow: 'hidden',
-              maxHeight: eoidExpanded ? '200px' : '0px',
-              transition: 'max-height 0.3s ease',
-            }}>
-              <div style={{ paddingLeft: '12px', paddingTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {canSeeNormalEoid && (
-                  <NavLink
-                    to="/eoid/normal"
-                    style={({ isActive }) => ({
-                      ...navLinkStyle(isActive),
-                      padding: '10px 16px',
-                      fontSize: '0.9rem',
-                      color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)',
-                      background: isActive ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                      border: isActive ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid transparent',
-                      boxShadow: isActive ? '0 0 12px rgba(245,158,11,0.12)' : 'none',
-                    })}
-                  >
-                    <Fingerprint size={16} />
-                    Normal EOID File
-                  </NavLink>
-                )}
-                {canSeeUnderageEoid && (
-                  <NavLink
-                    to="/eoid/underage"
-                    style={({ isActive }) => ({
-                      ...navLinkStyle(isActive),
-                      padding: '10px 16px',
-                      fontSize: '0.9rem',
-                      color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)',
-                      background: isActive ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                      border: isActive ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid transparent',
-                      boxShadow: isActive ? '0 0 12px rgba(245,158,11,0.12)' : 'none',
-                    })}
-                  >
-                    <Baby size={16} />
-                    Under-Age EOID File
-                  </NavLink>
-                )}
-              </div>
-            </div>
-          </div>
+          <NavLink
+            to={canSeeNormalEoid ? '/eoid/normal' : '/eoid/underage'}
+            style={({ isActive }) => navLinkStyle(isActive, 'var(--accent-gold)')}
+          >
+            <Fingerprint size={20} />
+            Ethiopian Origin ID File
+          </NavLink>
         )}
 
         {/* Links after EOID */}

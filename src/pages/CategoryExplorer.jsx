@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Upload, Search, Plus, Edit, Trash2, Eye, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X, BarChart2, Fingerprint, Award, FileWarning, IdCard, Globe, CreditCard } from 'lucide-react';
+import { Download, Upload, Search, Plus, Edit, Trash2, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X, BarChart2, Fingerprint, Award, FileWarning, IdCard, Globe, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { getAllRecords, addRecord, updateRecord, deleteRecord, importRecords } from '../utils/db';
+import { getAllRecords, addRecord, updateRecord, deleteRecord, importRecords, logAuditEntry } from '../utils/db';
 import RecordFormModal from '../components/RecordFormModal';
 
 export default function CategoryExplorer({ category }) {
@@ -17,6 +17,28 @@ export default function CategoryExplorer({ category }) {
   const [expandedRecordId, setExpandedRecordId] = useState(null);
   const [previewAttachment, setPreviewAttachment] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  // Scans uploaded via header (preview/download/remove)
+  const [scans, setScans] = useState([]);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+
+  const handleScanFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const readers = files.map(file => new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve({ name: file.name, size: file.size, dataUrl: r.result, uploadedAt: Date.now() });
+      r.readAsDataURL(file);
+    }));
+    Promise.all(readers).then(results => {
+      setScans(prev => [...results, ...prev]);
+      setScanModalOpen(true);
+    }).catch(err => console.error('Scan read error:', err));
+    e.target.value = '';
+  };
+
+  const removeScan = (index) => {
+    setScans(prev => prev.filter((_, i) => i !== index));
+  };
   
   // Store name mapping
   const storeName = 
@@ -110,10 +132,32 @@ export default function CategoryExplorer({ category }) {
 
       if (savedRecord.id) {
         // Edit Mode
+        const existingRecord = records.find(r => r.id === savedRecord.id);
         await updateRecord(storeName, savedRecord);
+        
+        // Log the update
+        await logAuditEntry(
+          'UPDATE',
+          storeName,
+          currentUser?.id || 'unknown',
+          currentUser?.fullName || currentUser?.username || 'Unknown User',
+          savedRecord.id,
+          savedRecord,
+          existingRecord
+        );
       } else {
         // Add Mode
-        await addRecord(storeName, savedRecord);
+        const newId = await addRecord(storeName, savedRecord);
+        
+        // Log the creation
+        await logAuditEntry(
+          'CREATE',
+          storeName,
+          currentUser?.id || 'unknown',
+          currentUser?.fullName || currentUser?.username || 'Unknown User',
+          newId,
+          savedRecord
+        );
       }
       setIsModalOpen(false);
       setEditingRecord(null);
@@ -127,7 +171,19 @@ export default function CategoryExplorer({ category }) {
   const handleDeleteRecord = async (id, name) => {
     if (window.confirm(`Are you sure you want to delete ${name}'s record?`)) {
       try {
+        const recordToDelete = records.find(r => r.id === id);
         await deleteRecord(storeName, id);
+        
+        // Log the deletion
+        await logAuditEntry(
+          'DELETE',
+          storeName,
+          currentUser?.id || 'unknown',
+          currentUser?.fullName || currentUser?.username || 'Unknown User',
+          id,
+          recordToDelete || { id }
+        );
+
         loadRecords();
         if (expandedRecordId === id) setExpandedRecordId(null);
       } catch (err) {
@@ -310,6 +366,17 @@ export default function CategoryExplorer({ category }) {
         }
 
         await importRecords(storeName, importedRecords);
+        
+        // Log the bulk import
+        await logAuditEntry(
+          'IMPORT',
+          storeName,
+          currentUser?.id || 'unknown',
+          currentUser?.fullName || currentUser?.username || 'Unknown User',
+          null,
+          { importedCount: importedRecords.length, duplicateCount, records: importedRecords }
+        );
+
         let msg = `Successfully imported ${importedRecords.length} records into ${category.toUpperCase()} store!`;
         if (duplicateCount > 0) {
           msg += ` (Ignored ${duplicateCount} duplicate entries to prevent redundancy)`;
@@ -327,15 +394,24 @@ export default function CategoryExplorer({ category }) {
 
   const getTitle = () => {
     if (category === 'visa') return 'VISA Files';
-    if (category === 'eoid') return 'Ethiopian Origin ID File';
-    if (category === 'eoid-normal') return 'Ethiopian Origin ID — Normal File';
-    if (category === 'eoid-underage') return 'Ethiopian Origin ID — Under-Age File';
+    if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') return 'Ethiopian Origin ID File';
     if (category === 'residence-id') return 'Residence ID File';
     if (category === 'etd') return 'Emergency Travel Document File';
     if (category === 'eritrean-id') return 'Eritrean ID File';
     if (category === 'alien-passport') return 'Alien Passport File';
     if (category === 'yellow-card') return 'Yellow Card File';
     return 'File Explorer';
+  };
+
+  const eoidDropdownOptions = [
+    { value: 'normal', label: 'Normal EOID File' },
+    { value: 'underage', label: 'Under-Age EOID File' }
+  ];
+
+  const currentEoidOption = category === 'eoid-underage' ? 'underage' : 'normal';
+
+  const handleEoidSelection = (value) => {
+    navigate(`/eoid/${value}`);
   };
 
   const getHeaderStyle = () => {
@@ -352,6 +428,12 @@ export default function CategoryExplorer({ category }) {
   };
 
   const isAuthorized = !currentUser || currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR' || (currentUser.allowedDivisions || []).includes(category) || (currentUser.allowedDivisions || []).includes('eoid-normal') && category === 'eoid-normal' || (currentUser.allowedDivisions || []).includes('eoid-underage') && category === 'eoid-underage';
+
+  // Privilege checking function based on user role
+  const canAdd = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
+  const canEdit = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
+  const canDelete = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
+  const canImport = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
 
   if (!isAuthorized) {
     return (
@@ -387,27 +469,58 @@ export default function CategoryExplorer({ category }) {
       }}>
         <div>
           <h2 style={{ margin: 0, fontWeight: 300, fontSize: '1.8rem', letterSpacing: '1px' }}>{getTitle()}</h2>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0', fontSize: '0.85rem' }}>Source: - FSD Division Data structuring</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+            <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.85rem' }}>Source: - FSD Division Data structuring</p>
+            {(category === 'eoid-normal' || category === 'eoid-underage') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 600, whiteSpace: 'nowrap' }}>EOID Type:</label>
+                <select
+                  value={category === 'eoid-underage' ? 'underage' : 'normal'}
+                  onChange={(e) => navigate(`/eoid/${e.target.value}`)}
+                  style={{
+                    color: '#fff',
+                    background: 'rgba(15, 23, 42, 0.9)',
+                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                    padding: '8px 12px',
+                    borderRadius: '999px',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    minWidth: '180px'
+                  }}
+                >
+                  <option value="normal">Normal EOID File</option>
+                  <option value="underage">Under-Age EOID File</option>
+                </select>
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Actions */}
         <div style={{ display: 'flex', gap: '12px' }}>
-          {currentUser && currentUser.role !== 'VIEWER' && (
+          {canAdd && (
             <button className="glass-button" onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}>
               <Plus size={18} /> Add Entry
             </button>
           )}
           
+          <label className="glass-button" style={{ background: 'rgba(255,255,255,0.03)', color: '#fff', border: '1px solid rgba(255,255,255,0.06)', boxShadow: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileText size={18} /> Scans
+            <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={handleScanFiles} />
+          </label>
+
           <button className="glass-button" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#fff', border: '1px solid rgba(59, 130, 246, 0.3)', boxShadow: 'none' }} onClick={handleExportExcel}>
             <Download size={18} /> Export Excel
           </button>
 
-          {currentUser && currentUser.role !== 'VIEWER' && (
+          {canImport && (
             <label className="glass-button" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)', boxShadow: 'none', cursor: 'pointer' }}>
               <Upload size={18} /> Import Excel
               <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImportExcel} />
             </label>
           )}
+          
         </div>
       </div>
 
@@ -417,7 +530,7 @@ export default function CategoryExplorer({ category }) {
           const getModuleConfig = (moduleKey) => {
             const configs = {
               'visa': {
-                title: 'VISA Files Division',
+                title: 'VISA Files',
                 desc: 'A Visa is an official document or endorsement on a passport indicating that the holder is allowed to enter, leave, or stay for a specified period of time in a country. The VISA Files module manages incoming entry visa records, extension timelines, and stay permit durations, helping officers track and oversee visa classifications and validity states for all foreign nationals.',
                 color: '#10b981',
                 icon: <FileText size={24} />
@@ -435,7 +548,7 @@ export default function CategoryExplorer({ category }) {
                 icon: <Fingerprint size={24} />
               },
               'residence-id': {
-                title: 'Residence ID File Division',
+                title: 'Residence ID File',
                 desc: 'A Residence ID Card grants a foreign national the legal right to reside in the country under specified conditions (such as work, study, or retirement). This module archives residential permits, employer/sponsor linkages, company registrations, and validity certificates for foreign residents.',
                 color: '#3b82f6',
                 icon: <Award size={24} />
@@ -447,19 +560,19 @@ export default function CategoryExplorer({ category }) {
                 icon: <FileWarning size={24} />
               },
               'eritrean-id': {
-                title: 'Eritrean ID File Division',
+                title: 'Eritrean ID File',
                 desc: 'A specialized verification registry for individuals of Eritrean origin. This module coordinates registry archives, identity folders, family heritage, background verification dossiers, and immigration status credentials for Eritrean origin identification.',
                 color: '#8b5cf6',
                 icon: <IdCard size={24} />
               },
               'alien-passport': {
-                title: 'Alien Passport File Division',
+                title: 'Alien Passport File',
                 desc: 'An Alien Passport is a travel document issued to stateless persons or foreign residents who are unable to obtain a passport from their country of nationality. This module tracks foreign passport registrations, stateless resident dossiers, alien identification folders, and entry-exit histories.',
                 color: '#0ea5e9',
                 icon: <Globe size={24} />
               },
               'yellow-card': {
-                title: 'Yellow Card File Division',
+                title: 'Yellow Card File',
                 desc: 'Administers registration timelines, validation records, renewal parameters, and dossier credentials for Yellow Card identification holders. It organizes files to ensure compliant renewal histories and valid identity status checks.',
                 color: '#ca8a04',
                 icon: <CreditCard size={24} />
@@ -513,6 +626,195 @@ export default function CategoryExplorer({ category }) {
         })()}
       </div>
 
+      {/* Secure Record Lookup Panel — bulk data is hidden; search to access individual records */}
+      <div className="glass-panel animate-fade-in" style={{
+        marginTop: 8,
+        padding: '32px',
+        borderRadius: '16px',
+        border: '1px solid var(--border-glass)',
+        background: 'rgba(10, 18, 38, 0.55)',
+        backdropFilter: 'blur(12px)',
+      }}>
+
+        {/* Panel Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '12px',
+              background: `${styles.labelColor}18`,
+              border: `1px solid ${styles.labelColor}40`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: styles.labelColor,
+              boxShadow: `0 0 18px ${styles.labelColor}20`,
+              flexShrink: 0
+            }}>
+              <Search size={20} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem', color: '#fff', letterSpacing: '0.3px' }}>Record Lookup</h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {records.length === 0
+                  ? 'No records registered in this module yet.'
+                  : `${records.length} record${records.length !== 1 ? 's' : ''} stored — search to locate and manage individual entries.`}
+              </p>
+            </div>
+          </div>
+          {searchTerm && (
+            <button
+              onClick={() => { setSearchTerm(''); applyFiltersAndSort(records, '', sortField, sortAsc); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: 'var(--text-secondary)', fontSize: '0.82rem',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={13} /> Clear Search
+            </button>
+          )}
+        </div>
+
+        {/* Search Input */}
+        <div style={{ position: 'relative', marginBottom: '24px' }}>
+          <Search size={16} style={{
+            position: 'absolute', left: '14px', top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--text-secondary)', pointerEvents: 'none'
+          }} />
+          <input
+            type="text"
+            placeholder="Search by Full Name, Passport No., Personal ID, Box Number…"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            style={{
+              width: '100%',
+              padding: '13px 16px 13px 42px',
+              borderRadius: '10px',
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04))',
+              color: 'var(--text-primary)',
+              fontSize: '0.93rem',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Results Area */}
+        {searchTerm.trim() === '' ? (
+          /* Idle state */
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '48px 16px', gap: '14px',
+            border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '12px',
+            background: 'rgba(255,255,255,0.015)'
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'rgba(255,255,255,0.25)'
+            }}>
+              <Search size={22} />
+            </div>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', maxWidth: 380 }}>
+              Enter a name, passport number, or ID above to locate a specific record.<br />
+              <span style={{ opacity: 0.6, fontSize: '0.82rem' }}>Bulk data is restricted for security purposes.</span>
+            </p>
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          /* No match */
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '40px 16px', gap: '12px',
+            border: '1px dashed rgba(220,38,38,0.2)', borderRadius: '12px',
+            background: 'rgba(220,38,38,0.04)'
+          }}>
+            <AlertTriangle size={28} style={{ color: '#ef4444', opacity: 0.6 }} />
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              No records matched <strong style={{ color: '#fff' }}>"{searchTerm}"</strong> in this module.
+            </p>
+          </div>
+        ) : (
+          /* Matched results */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <p style={{ margin: '0 0 10px 0', fontSize: '0.78rem', color: 'var(--text-secondary)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+              {filteredRecords.length} result{filteredRecords.length !== 1 ? 's' : ''} found
+            </p>
+            {filteredRecords.map((r) => (
+              <div key={r.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+                padding: '18px 22px',
+                borderRadius: '12px',
+                border: '1px solid var(--border-glass)',
+                background: 'rgba(255,255,255,0.03)',
+              }}>
+                {/* Record Info */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '28px', flex: 1, minWidth: 0 }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Full Name</p>
+                    <p style={{ margin: '3px 0 0 0', fontWeight: 600, fontSize: '0.95rem', color: '#fff' }}>{r.fullName || '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Personal ID</p>
+                    <p style={{ margin: '3px 0 0 0', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem', color: styles.labelColor }}>{r.personalId || '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Passport No.</p>
+                    <p style={{ margin: '3px 0 0 0', fontFamily: 'monospace', fontSize: '0.88rem', color: 'var(--text-primary)' }}>{r.passportNumber || '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Box / Shelf</p>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '0.88rem', color: 'var(--text-primary)' }}>{r.boxNumber || '—'} / {r.shelfNumber || '—'}</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date</p>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '0.88rem', color: 'var(--text-primary)' }}>{r.date || '—'}</p>
+                  </div>
+                </div>
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  {canEdit && (
+                    <button
+                      onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
+                      title="Edit Record"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '8px 16px', borderRadius: '8px',
+                        border: '1px solid rgba(59,130,246,0.35)',
+                        background: 'rgba(59,130,246,0.12)',
+                        color: '#93c5fd', fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Edit size={14} /> Edit
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDeleteRecord(r.id, r.fullName || r.personalId)}
+                      title="Delete Record"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '8px 16px', borderRadius: '8px',
+                        border: '1px solid rgba(220,38,38,0.3)',
+                        background: 'rgba(220,38,38,0.08)',
+                        color: '#f87171', fontSize: '0.82rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {/* Edit/Add Modal */}
       <RecordFormModal 
         isOpen={isModalOpen}
@@ -521,6 +823,45 @@ export default function CategoryExplorer({ category }) {
         activeTab={category}
         initialRecord={editingRecord}
       />
+
+      {/* Scans Modal */}
+      {scanModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,10,21,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '24px' }}>
+          <div style={{ width: 'min(1000px, 95%)', maxHeight: '90vh', overflow: 'auto', background: 'rgba(10,18,38,0.98)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, color: '#fff' }}>Scans</h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setScanModalOpen(false)} className="glass-button">Close</button>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>
+              {scans.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)' }}>No scans uploaded.</p>
+              ) : scans.map((s, i) => (
+                <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 8 }}>
+                  {String(s.dataUrl || '').startsWith('data:image') ? (
+                    <img src={s.dataUrl} alt={s.name} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 6 }} />
+                  ) : (
+                    <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                      <FileText size={28} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem' }}>{s.name}</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{Math.round(s.size / 1024)} KB</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <a href={s.dataUrl} download={s.name} className="glass-button" style={{ padding: '6px 10px' }}><FileDown size={14} /> Download</a>
+                      <button onClick={() => removeScan(i)} className="glass-button" style={{ padding: '6px 10px', background: 'rgba(220,38,38,0.08)', color: '#f87171' }}>Remove</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox Preview Modal */}
       {previewAttachment && (

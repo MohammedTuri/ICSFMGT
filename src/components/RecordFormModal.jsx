@@ -437,34 +437,6 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
             </div>
 
             {/* Category Specific Fields */}
-            {(activeTab === 'eoid' || activeTab === 'eoid-normal') && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--accent-gold)' }}>EOID Number *</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(251, 191, 36, 0.4)' }}
-                  value={formData.eoidNumber} 
-                  onChange={e => setFormData({ ...formData, eoidNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. EOID-772182" 
-                  required
-                />
-              </div>
-            )}
-
-            {activeTab === 'eoid-underage' && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#f97316' }}>EOID Number * (Under-Age)</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(249, 115, 22, 0.4)' }}
-                  value={formData.eoidNumber} 
-                  onChange={e => setFormData({ ...formData, eoidNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. EOID-UA-00123" 
-                  required
-                />
-              </div>
-            )}
-
             {(activeTab === 'residence id' || activeTab === 'residence-id') && (
               <>
                 <div>
@@ -488,61 +460,9 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
               </>
             )}
 
-            {activeTab === 'etd' && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'rgba(165, 180, 252, 1)' }}>ETD Number *</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(165, 180, 252, 0.4)' }}
-                  value={formData.etdNumber} 
-                  onChange={e => setFormData({ ...formData, etdNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. ETD-88219" 
-                  required
-                />
-              </div>
-            )}
-
-            {activeTab === 'eritrean-id' && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#8b5cf6' }}>Eritrean ID Number *</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(139, 92, 246, 0.4)' }}
-                  value={formData.eritreanIdNumber} 
-                  onChange={e => setFormData({ ...formData, eritreanIdNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. ER-ID-123456" 
-                  required
-                />
-
-              </div>
-            )}
-
-            {activeTab === 'alien-passport' && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#0ea5e9' }}>Alien Passport Number *</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(14, 165, 233, 0.4)' }}
-                  value={formData.alienPassportNumber} 
-                  onChange={e => setFormData({ ...formData, alienPassportNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. AP-987654" 
-                  required
-                />
-              </div>
-            )}
-
             {activeTab === 'yellow-card' && (
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#ca8a04' }}>Yellow Card Number *</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(202, 138, 4, 0.4)' }}
-                  value={formData.yellowCardNumber} 
-                  onChange={e => setFormData({ ...formData, yellowCardNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. YC-554433" 
-                  required
-                />
-                <div style={{ marginTop: '12px' }}>
+                <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#ca8a04' }}>Yellow Card Type</label>
                   <select className="glass-input" value={formData.yellowCardType} onChange={e => setFormData({ ...formData, yellowCardType: e.target.value })}>
                     <option value="">SELECT TYPE</option>
@@ -557,16 +477,7 @@ export default function RecordFormModal({ isOpen, onClose, onSave, activeTab, in
 
             {activeTab === 'visa' && (
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#34d399' }}>Visa Number *</label>
-                <input 
-                  className="glass-input" 
-                  style={{ borderColor: 'rgba(52, 211, 153, 0.4)' }}
-                  value={formData.visaNumber} 
-                  onChange={e => setFormData({ ...formData, visaNumber: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. V-123456" 
-                  required
-                />
-                <div style={{ marginTop: '12px' }}>
+                <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#34d399' }}>Visa Type *</label>
                   <select className="glass-input" style={{ borderColor: 'rgba(52, 211, 153, 0.4)' }} value={formData.visaType} onChange={e => setFormData({ ...formData, visaType: e.target.value })}>
                     <option value="">SELECT VISA TYPE</option>

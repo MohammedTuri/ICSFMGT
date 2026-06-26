@@ -5,9 +5,11 @@ import {
   BarChart2, Download, Printer, Filter, Search, X,
   CheckCircle, AlertTriangle, FileText, Fingerprint, Award,
   FileWarning, IdCard, Globe, CreditCard, RefreshCw, ChevronDown,
-  ChevronUp, Calendar, Users, FileDown, ArrowRight, Layers
+  ChevronUp, Calendar, Users, FileDown, ArrowRight, Layers,
+  Edit, Trash2
 } from 'lucide-react';
-import { getAllRecords } from '../utils/db';
+import { getAllRecords, addRecord, updateRecord, deleteRecord } from '../utils/db';
+import RecordFormModal from '../components/RecordFormModal';
 
 /* ─────────────────────────────────────────────────────
    Division config
@@ -99,10 +101,16 @@ export default function Reports() {
     });
   };
 
+  /* ── Division options (derived from allowedDivisions — must be above all handlers) ── */
+  const divisionOptions = DIVISIONS.filter(d => allowedDivisions.includes(d.key));
+
   /* ── UI ── */
   const [results, setResults] = useState([]);
   const [page, setPage] = useState(1);
   const [summaryStats, setSummaryStats] = useState({});
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [modalActiveTab, setModalActiveTab] = useState('');
   const PAGE_SIZE = 50;
 
   const printStyleRef = useRef(null);
@@ -287,6 +295,66 @@ export default function Reports() {
     }));
   };
 
+  const handleOpenEdit = (record) => {
+    setEditingRecord(record);
+    setModalActiveTab(record._division || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleOpenAdd = (divisionKey) => {
+    setEditingRecord(null);
+    setModalActiveTab(divisionKey || divisionOptions[0]?.key || '');
+    setIsEditModalOpen(true);
+  };
+
+  useEffect(() => {
+    if (!modalActiveTab && divisionOptions.length > 0) {
+      setModalActiveTab(divisionOptions[0].key);
+    }
+  }, [divisionOptions]);
+
+  const handleCloseEdit = () => {
+    setIsEditModalOpen(false);
+    setEditingRecord(null);
+    setModalActiveTab('');
+  };
+
+  const handleSaveEditedRecord = async (savedRecord) => {
+    try {
+      // Determine whether this is an edit or add
+      if (editingRecord && editingRecord.id) {
+        const storeName = getDivisionConfig(editingRecord._division).store;
+        await updateRecord(storeName, savedRecord);
+      } else {
+        // Add mode: use modalActiveTab as target division
+        const targetDiv = modalActiveTab || savedRecord._division || '';
+        const storeName = getDivisionConfig(targetDiv).store;
+        await addRecord(storeName, savedRecord);
+      }
+      handleCloseEdit();
+      setModalActiveTab('');
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to save edited/added record:', err);
+      alert('Unable to save changes. Please try again.');
+    }
+  };
+
+  const handleDeleteRecord = async (record) => {
+    if (!record?.id) return;
+    const name = record.fullName || record.personalId || 'this record';
+    if (!window.confirm(`Delete ${name}? This action cannot be undone.`)) return;
+
+    try {
+      const storeName = getDivisionConfig(record._division).store;
+      await deleteRecord(storeName, record.id);
+      await loadAllData();
+    } catch (err) {
+      console.error('Failed to delete record:', err);
+      alert('Unable to delete record. Please try again.');
+    }
+  };
+
   /* ── Excel Export ── */
   const handleExportExcel = () => {
     if (results.length === 0) { alert('No records to export.'); return; }
@@ -335,8 +403,6 @@ export default function Reports() {
   const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
   const paginatedResults = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const divisionOptions = DIVISIONS.filter(d => allowedDivisions.includes(d.key));
-
   /* ── Helpers ── */
   const getDivisionIcon = (key) => {
     if (key === 'visa') return <FileText size={15} />;
@@ -371,9 +437,12 @@ export default function Reports() {
         background: 'linear-gradient(135deg, #0f2b5c 0%, #1a3a6e 40%, #1d4ed8 100%)',
         borderRadius: '20px',
         padding: '32px 36px 28px',
-        position: 'relative',
+        position: 'sticky',
+        top: 0,
+        zIndex: 30,
         overflow: 'hidden',
         color: '#ffffff',
+        backdropFilter: 'blur(18px)',
       }}>
         {/* Decorative circles */}
         <div style={{ position: 'absolute', top: '-40px', right: '-30px', width: '180px', height: '180px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
@@ -399,7 +468,8 @@ export default function Reports() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            {results.length > 0 && (
+              {}
+              {results.length > 0 && (
               <>
                 <button onClick={handleExportExcel} style={{
                   background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
@@ -718,6 +788,7 @@ export default function Reports() {
                         <th>Date</th>
                         <th>Service</th>
                         <th>Scans</th>
+                        <th className="no-print">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -757,6 +828,14 @@ export default function Reports() {
                                   <AlertTriangle size={12} /> None
                                 </span>
                               )}
+                            </td>
+                            <td className="rpt-action-cell no-print" style={{ whiteSpace: 'nowrap', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button type="button" onClick={() => handleOpenEdit(r)} className="rpt-action-btn rpt-action-edit" title="Edit record">
+                                <Edit size={14} /> Edit
+                              </button>
+                              <button type="button" onClick={() => handleDeleteRecord(r)} className="rpt-action-btn rpt-action-delete" title="Delete record">
+                                <Trash2 size={14} /> Delete
+                              </button>
                             </td>
                           </tr>
                         );
@@ -852,6 +931,16 @@ export default function Reports() {
           ))}
         </div>,
         document.body
+      )}
+
+      {isEditModalOpen && (
+        <RecordFormModal
+          isOpen={isEditModalOpen}
+          onClose={handleCloseEdit}
+          onSave={handleSaveEditedRecord}
+          activeTab={modalActiveTab || editingRecord?._division || ''}
+          initialRecord={editingRecord}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════
@@ -1347,6 +1436,37 @@ export default function Reports() {
           align-items: center;
           gap: 6px;
         }
+        .rpt-action-cell {
+          display: flex;
+          gap: 6px;
+          justify-content: flex-start;
+          align-items: center;
+        }
+        .rpt-action-btn {
+          border: 1px solid transparent;
+          border-radius: 8px;
+          background: #f8fafc;
+          color: var(--text-primary);
+          font-size: 0.82rem;
+          font-weight: 600;
+          padding: 6px 10px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+        }
+        .rpt-action-btn:hover {
+          background: #eef2ff;
+        }
+        .rpt-action-edit {
+          border-color: rgba(37, 99, 235, 0.2);
+          color: #1d4ed8;
+        }
+        .rpt-action-delete {
+          border-color: rgba(239, 68, 68, 0.2);
+          color: #dc2626;
+        }
         .rpt-pg-btn {
           background: #ffffff;
           border: 1px solid var(--border-glass);
@@ -1374,7 +1494,11 @@ export default function Reports() {
           font-size: 0.88rem;
         }
         .rpt-table th {
-          background: rgba(15,43,92,0.025);
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: #ffffff;
+          box-shadow: 0 2px 8px rgba(15, 43, 92, 0.06);
           color: var(--text-primary);
           font-weight: 700;
           padding: 13px 16px;

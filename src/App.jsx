@@ -5,6 +5,7 @@ import CategoryExplorer from './pages/CategoryExplorer';
 import Login from './pages/Login';
 import UserManagement from './pages/UserManagement';
 import Reports from './pages/Reports';
+import AuditLog from './pages/AuditLog';
 
 // Route guard: only allows users with ADMIN role
 function AdminRoute({ children }) {
@@ -27,6 +28,7 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="audit-log" element={<AuditLog />} />
           <Route path="visa" element={<CategoryExplorer category="visa" />} />
           {/* Ethiopian Origin ID sub-routes */}
           <Route path="eoid" element={<Navigate to="/eoid/normal" replace />} />
