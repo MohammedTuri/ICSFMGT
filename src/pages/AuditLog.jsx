@@ -125,6 +125,7 @@ export default function AuditLog() {
 
     const tableRows = auditLogs.map((log, i) => {
       const action = log.action || 'CREATE';
+      const fullName = (log.recordData && log.recordData.fullName) || (log.previousData && log.previousData.fullName) || '—';
       return `
         <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
           <td style="padding:10px 14px;font-size:0.82rem;color:#475569;white-space:nowrap">${new Date(log.timestamp).toLocaleString()}</td>
@@ -135,6 +136,7 @@ export default function AuditLog() {
             </span>
           </td>
           <td style="padding:10px 14px;font-size:0.82rem;color:#1e293b;font-weight:600">${log.storeName || '—'}</td>
+          <td style="padding:10px 14px;font-size:0.82rem;color:#1e293b;font-weight:600">${fullName}</td>
           <td style="padding:10px 14px;font-size:0.82rem;color:#1e293b">${log.userName || log.userId || '—'}</td>
           <td style="padding:10px 14px;font-size:0.82rem;color:#64748b;font-family:monospace">${log.recordId || '—'}</td>
         </tr>`;
@@ -215,6 +217,7 @@ export default function AuditLog() {
                  <th style="padding:12px 14px;text-align:left;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Timestamp</th>
                  <th style="padding:12px 14px;text-align:left;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Action</th>
                  <th style="padding:12px 14px;text-align:left;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Module</th>
+                 <th style="padding:12px 14px;text-align:left;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Full Name</th>
                  <th style="padding:12px 14px;text-align:left;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">User</th>
                  <th style="padding:12px 14px;text-align:left;font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Record ID</th>
                </tr>
@@ -426,6 +429,7 @@ export default function AuditLog() {
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Timestamp</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Action</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Module</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Full Name</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>User</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Record ID</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Details</th>
@@ -450,6 +454,9 @@ export default function AuditLog() {
                       </td>
                       <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
                         {log.storeName}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                        {(log.recordData && log.recordData.fullName) || (log.previousData && log.previousData.fullName) || '—'}
                       </td>
                       <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                         {log.userName || log.userId || '—'}
