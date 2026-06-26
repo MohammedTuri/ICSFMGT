@@ -21,9 +21,11 @@ export default function AuditLog() {
     dateTo: ''
   });
   const [expandedLogId, setExpandedLogId] = useState(null);
+  const [reportReady, setReportReady] = useState(false);
 
   // Load audit logs on mount and when filters change
   useEffect(() => {
+    setReportReady(false); // hide table whenever filters change
     loadAuditLogs();
   }, [filters]);
 
@@ -61,6 +63,7 @@ export default function AuditLog() {
   };
 
   const handleReset = () => {
+    setReportReady(false);
     setFilters({
       action: '',
       storeName: '',
@@ -95,6 +98,7 @@ export default function AuditLog() {
   };
 
   const generateReport = () => {
+    setReportReady(true);
     const actionCounts = auditLogs.reduce((acc, log) => {
       acc[log.action] = (acc[log.action] || 0) + 1;
       return acc;
@@ -233,6 +237,18 @@ export default function AuditLog() {
     if (win) {
       win.document.write(html);
       win.document.close();
+    } else {
+      // Popup blocked — fall back to downloading the report as an HTML file
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audit_report_${new Date().toISOString().split('T')[0]}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('Popup was blocked by your browser. The report has been downloaded as an HTML file instead. Open it in your browser to view and print it.');
     }
   };
 
@@ -374,12 +390,30 @@ export default function AuditLog() {
       }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
-            Activity Log ({auditLogs.length} {auditLogs.length === 1 ? 'entry' : 'entries'})
+            Activity Log {reportReady ? `(${auditLogs.length} ${auditLogs.length === 1 ? 'entry' : 'entries'})` : ''}
           </h3>
           {loading && <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Loading...</span>}
         </div>
 
-        {auditLogs.length === 0 ? (
+        {!reportReady ? (
+          /* ── Locked placeholder ── */
+          <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '16px',
+              background: 'rgba(16,185,129,0.08)', border: '2px dashed rgba(16,185,129,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px auto'
+            }}>
+              <ClipboardList size={28} style={{ color: '#059669', opacity: 0.6 }} />
+            </div>
+            <p style={{ margin: '0 0 6px 0', fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)' }}>
+              Log data is hidden
+            </p>
+            <p style={{ margin: 0, fontSize: '0.85rem' }}>
+              Click <strong style={{ color: '#059669' }}>Generate Report</strong> to load and view the activity log.
+            </p>
+          </div>
+        ) : auditLogs.length === 0 ? (
           <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
             <FileText size={40} style={{ opacity: 0.3, marginBottom: '12px', display: 'block' }} />
             <p style={{ margin: 0 }}>No audit logs found</p>

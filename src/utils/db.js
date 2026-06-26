@@ -460,9 +460,25 @@ export async function logAuditEntry(action, storeName, userId, userName, recordI
     recordData,
     previousData,
     timestamp: new Date().toISOString(),
-    ipAddress: 'local' // Would be populated from server in production
+    ipAddress: 'local'
   };
 
+  // ── Supabase path ──────────────────────────────────────────
+  if (isSupabaseEnabled) {
+    try {
+      const { error } = await supabase
+        .from('audit_logs')
+        .insert([auditEntry]);
+      if (error) {
+        console.error('Supabase audit log error:', error);
+      }
+    } catch (err) {
+      console.error('Supabase audit log exception:', err);
+    }
+    return auditEntry;
+  }
+
+  // ── IndexedDB fallback ─────────────────────────────────────
   return new Promise(async (resolve, reject) => {
     try {
       const db = await initLocalDB();
@@ -484,6 +500,36 @@ export async function logAuditEntry(action, storeName, userId, userName, recordI
  * Get all audit logs with optional filtering
  */
 export async function getAuditLogs(filters = {}) {
+  // Helper: push endDate to end of that day so the full day is included
+  const endOfDay = (dateStr) => {
+    if (!dateStr) return undefined;
+    return dateStr.includes('T') ? dateStr : `${dateStr}T23:59:59.999Z`;
+  };
+
+  // ── Supabase path ──────────────────────────────────────────
+  if (isSupabaseEnabled) {
+    try {
+      let query = supabase
+        .from('audit_logs')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (filters.action)    query = query.eq('action', filters.action);
+      if (filters.storeName) query = query.eq('storeName', filters.storeName);
+      if (filters.userId)    query = query.eq('userId', filters.userId);
+      if (filters.startDate) query = query.gte('timestamp', filters.startDate);
+      if (filters.endDate)   query = query.lte('timestamp', endOfDay(filters.endDate));
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Supabase getAuditLogs error:', err);
+      throw err;
+    }
+  }
+
+  // ── IndexedDB fallback ─────────────────────────────────────
   return new Promise(async (resolve, reject) => {
     try {
       const db = await initLocalDB();
@@ -510,7 +556,8 @@ export async function getAuditLogs(filters = {}) {
           logs = logs.filter(log => new Date(log.timestamp) >= new Date(filters.startDate));
         }
         if (filters.endDate) {
-          logs = logs.filter(log => new Date(log.timestamp) <= new Date(filters.endDate));
+          // Include the full end day
+          logs = logs.filter(log => new Date(log.timestamp) <= new Date(endOfDay(filters.endDate)));
         }
 
         resolve(logs);
