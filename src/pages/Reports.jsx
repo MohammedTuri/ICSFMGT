@@ -6,11 +6,11 @@ import {
   CheckCircle, AlertTriangle, FileText, Fingerprint, Award,
   FileWarning, IdCard, Globe, CreditCard, RefreshCw, ChevronDown,
   ChevronUp, Calendar, Users, FileDown, ArrowRight, Layers,
-  Edit, Trash2
+  Edit, Trash2, TrendingUp
 } from 'lucide-react';
-import { getAllRecords, addRecord, updateRecord, deleteRecord } from '../utils/db';
+import { getAllRecords, addRecord, updateRecord, deleteRecord, getAuditLogs } from '../utils/db';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import RecordFormModal from '../components/RecordFormModal';
-
 /* ─────────────────────────────────────────────────────
    Division config
 ───────────────────────────────────────────────────── */
@@ -63,6 +63,10 @@ export default function Reports() {
   /* ── Auth ── */
   const [currentUser, setCurrentUser] = useState(null);
   const [allowedDivisions, setAllowedDivisions] = useState([]);
+
+  /* ── Tabs / Views ── */
+  const [activeTab, setActiveTab] = useState('data');
+  const [officerPerformance, setOfficerPerformance] = useState([]);
 
   /* ── Data ── */
   const [allData, setAllData] = useState([]);
@@ -187,6 +191,26 @@ export default function Reports() {
         records.forEach(r => all.push({ ...r, _division: div.key, _divisionLabel: div.label }));
       }
       setAllData(all);
+      
+      // Load Officer Performance
+      try {
+        const logs = await getAuditLogs();
+        const performanceMap = {};
+        logs.forEach(log => {
+          if (log.action === 'CREATE' || log.action === 'UPDATE') {
+            const officer = log.userName || 'Unknown Officer';
+            if (!performanceMap[officer]) {
+              performanceMap[officer] = { name: officer, added: 0, edited: 0 };
+            }
+            if (log.action === 'CREATE') performanceMap[officer].added += 1;
+            if (log.action === 'UPDATE') performanceMap[officer].edited += 1;
+          }
+        });
+        setOfficerPerformance(Object.values(performanceMap));
+      } catch (err) {
+        console.error('Audit load error:', err);
+      }
+
       setDataLoaded(true);
       applyFilters(all, filters);
     } catch (err) {
@@ -466,6 +490,24 @@ export default function Reports() {
             <p style={{ color: 'rgba(255,255,255,0.65)', margin: '0 0 0 54px', fontSize: '0.88rem', fontWeight: 400 }}>
               Generate customized reports across all immigration file modules
             </p>
+            <div style={{ display: 'flex', gap: '8px', margin: '20px 0 0 54px' }}>
+              <button 
+                onClick={() => setActiveTab('data')}
+                style={{
+                  background: activeTab === 'data' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
+                  fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s'
+                }}>Data Records</button>
+              <button 
+                onClick={() => setActiveTab('performance')}
+                style={{
+                  background: activeTab === 'performance' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
+                  fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px'
+                }}><TrendingUp size={16} /> Officer Performance</button>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
               {}
@@ -501,10 +543,12 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════
-          AIRLINE-STYLE HORIZONTAL FILTER BAR
-      ══════════════════════════════════════════════════ */}
-      <div className="no-print rpt-filter-bar animate-fade-in">
+      {activeTab === 'data' && (
+        <>
+          {/* ══════════════════════════════════════════════════
+              AIRLINE-STYLE HORIZONTAL FILTER BAR
+          ══════════════════════════════════════════════════ */}
+          <div className="no-print rpt-filter-bar animate-fade-in">
 
         {/* Row 1: Radio-style type selector (like Round Trip / One-Way) */}
         <div className="rpt-type-row">
@@ -941,6 +985,58 @@ export default function Reports() {
           activeTab={modalActiveTab || editingRecord?._division || ''}
           initialRecord={editingRecord}
         />
+      )}
+        </>
+      )}
+
+      {activeTab === 'performance' && (
+        <div className="animate-fade-in" style={{ background: '#fff', borderRadius: '16px', padding: '32px', border: '1px solid var(--border-glass)', boxShadow: '0 4px 24px rgba(15, 43, 92, 0.06)' }}>
+          <h3 style={{ margin: '0 0 24px 0', fontSize: '1.4rem', color: 'var(--text-primary)', fontWeight: 700, letterSpacing: '0.3px' }}>Officer Performance Metrics</h3>
+          
+          {officerPerformance.length === 0 ? (
+            <div className="rpt-empty-state">
+              <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No performance data available. Records have not been generated yet.</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+                {officerPerformance.map((officer, i) => (
+                  <div key={i} style={{ padding: '24px', borderRadius: '14px', border: '1px solid rgba(15, 43, 92, 0.08)', background: '#f8fafc', boxShadow: '0 2px 10px rgba(15,43,92,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(29, 78, 216, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>
+                        <Users size={20} />
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)', fontWeight: 700 }}>{officer.name}</h4>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 500, paddingBottom: '12px', borderBottom: '1px solid rgba(15,43,92,0.06)' }}>
+                      <span>Added:</span> <strong style={{ color: '#059669', fontSize: '1.1rem' }}>{officer.added}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 500, paddingTop: '12px' }}>
+                      <span>Updated:</span> <strong style={{ color: '#d4950a', fontSize: '1.1rem' }}>{officer.edited}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 700, paddingTop: '12px', marginTop: '12px', borderTop: '2px solid rgba(15,43,92,0.06)' }}>
+                      <span>Total Engagements:</span> <span>{officer.added + officer.edited}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ height: '440px', width: '100%', marginTop: '40px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={officerPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
+                    <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(15,43,92,0.1)', boxShadow: '0 8px 30px rgba(15,43,92,0.08)' }} />
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                    <Bar dataKey="added" name="Records Added" fill="#059669" radius={[6, 6, 0, 0]} maxBarSize={60} />
+                    <Bar dataKey="edited" name="Records Updated" fill="#f5a623" radius={[6, 6, 0, 0]} maxBarSize={60} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* ══════════════════════════════════════════════════

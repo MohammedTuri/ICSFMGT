@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Users, AlertTriangle, FileText, Fingerprint, Award, FileWarning, Search, Eye, FileDown, CheckCircle, IdCard, Globe, CreditCard } from 'lucide-react';
-import { getAllRecords } from '../utils/db';
+import { Users, AlertTriangle, FileText, Fingerprint, Award, FileWarning, Search, Eye, FileDown, CheckCircle, IdCard, Globe, CreditCard, Clock, Plus, Edit2, Trash2, Download } from 'lucide-react';
+import { getAllRecords, getAuditLogs } from '../utils/db';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -237,7 +237,7 @@ export default function Dashboard() {
                   className="search-row-hover"
                 >
                   <div>
-                    <span style={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>{rec.fullName}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{rec.fullName}</span>
                     <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       <span>Passport: <strong style={{ fontFamily: 'monospace' }}>{rec.passportNumber}</strong></span>
                       {rec.shelfNumber && <span>Shelf: <strong>{rec.shelfNumber}</strong></span>}
@@ -333,7 +333,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{stat.label}</p>
-              <h3 style={{ margin: 0, fontSize: '2rem', color: '#fff', fontWeight: 700 }}>{stat.value}</h3>
+              <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)', fontWeight: 700 }}>{stat.value}</h3>
               {stat.subText && (
                 <span style={{ fontSize: '0.7rem', color: stat.value > 0 ? 'var(--accent-danger)' : 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
                   {stat.subText}
@@ -372,57 +372,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h3 style={{ margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.9rem' }}>
-            Recent Activity
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
-            {recentRecords.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', margin: 'auto 0' }}>No records recorded yet.</p>
-            ) : (
-              recentRecords.map((rec) => (
-                <div 
-                  key={`${rec.storeName}_${rec.id}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    paddingBottom: '12px',
-                    borderBottom: '1px solid var(--border-glass)'
-                  }}
-                >
-                  <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '8px',
-                    background: rec.attachments.length > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: rec.attachments.length > 0 ? 'var(--accent-emerald)' : 'var(--accent-danger)'
-                  }}>
-                    {rec.attachments.length > 0 ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.85rem', display: 'block' }}>{rec.fullName}</span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>
-                      {rec.category} • Box {rec.boxNumber} • {new Date(rec.updatedAt || rec.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  <button 
-                    className="glass-button" 
-                    style={{ padding: '4px 8px', fontSize: '0.7rem', height: 'fit-content' }}
-                    onClick={() => setSelectedRecord(rec)}
-                  >
-                    View
-                  </button>
-                </div>
-              ))
-            )}
+        {/* Live Audit Activity Feed */}
+        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '420px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.85rem' }}>
+              Live Activity Feed
+            </h3>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-emerald)', display: 'inline-block', animation: 'pulse 2s infinite' }}></span>
+              LIVE
+            </span>
           </div>
+          <AuditFeed />
         </div>
 
       </div>
@@ -540,6 +501,93 @@ export default function Dashboard() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+function AuditFeed() {
+  const [feed, setFeed] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const ACTION_META = {
+    CREATE: { label: 'Added', color: '#059669', bg: '#d1fae5', Icon: Plus },
+    UPDATE: { label: 'Modified', color: '#1d4ed8', bg: '#dbeafe', Icon: Edit2 },
+    DELETE: { label: 'Deleted', color: '#dc2626', bg: '#fee2e2', Icon: Trash2 },
+    IMPORT: { label: 'Imported', color: '#a855f7', bg: '#f3e8ff', Icon: Download },
+  };
+
+  const timeAgo = (iso) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return new Date(iso).toLocaleDateString();
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const logs = await getAuditLogs({});
+        setFeed(logs.slice(0, 8));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (loading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading activity...</div>;
+
+  if (feed.length === 0) return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', gap: '8px' }}>
+      <Clock size={28} style={{ opacity: 0.25 }} />
+      <p style={{ margin: 0, fontSize: '0.85rem' }}>No activity yet</p>
+      <p style={{ margin: 0, fontSize: '0.76rem', opacity: 0.6 }}>Actions will appear here in real time.</p>
+    </div>
+  );
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      {feed.map((entry, idx) => {
+        const meta = ACTION_META[entry.action] || ACTION_META.CREATE;
+        const Icon = meta.Icon;
+        const name = entry.recordData?.fullName || entry.previousData?.fullName || '—';
+        return (
+          <div key={idx} style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '10px 12px', borderRadius: '10px',
+            transition: 'background 0.15s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(15,43,92,0.025)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{
+              width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
+              background: meta.bg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: meta.color
+            }}>
+              <Icon size={15} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {name}
+              </div>
+              <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
+                <span style={{ padding: '1px 6px', borderRadius: '4px', background: meta.bg, color: meta.color, fontWeight: 700, fontSize: '0.67rem', marginRight: '6px' }}>{meta.label}</span>
+                {entry.storeName} · {entry.userName || 'Unknown'}
+              </div>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', flexShrink: 0 }}>{timeAgo(entry.timestamp)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

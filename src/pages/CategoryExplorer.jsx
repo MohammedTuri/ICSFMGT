@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Upload, Search, Plus, Edit, Trash2, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X, BarChart2, Fingerprint, Award, FileWarning, IdCard, Globe, CreditCard } from 'lucide-react';
+import { Download, Upload, Search, Plus, Edit, Trash2, FileText, CheckCircle, AlertTriangle, FileDown, ArrowUpDown, X, BarChart2, Fingerprint, Award, FileWarning, IdCard, Globe, CreditCard, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getAllRecords, addRecord, updateRecord, deleteRecord, importRecords, logAuditEntry } from '../utils/db';
 import RecordFormModal from '../components/RecordFormModal';
@@ -17,6 +17,7 @@ export default function CategoryExplorer({ category }) {
   const [expandedRecordId, setExpandedRecordId] = useState(null);
   const [previewAttachment, setPreviewAttachment] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [toast, setToast] = useState(null);
   // Scans uploaded via header (preview/download/remove)
   const [scans, setScans] = useState([]);
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -133,7 +134,8 @@ export default function CategoryExplorer({ category }) {
       if (savedRecord.id) {
         // Edit Mode
         const existingRecord = records.find(r => r.id === savedRecord.id);
-        await updateRecord(storeName, savedRecord);
+        const recordToUpdate = { ...savedRecord, officerName: currentUser?.fullName || currentUser?.username || 'Unknown Officer' };
+        await updateRecord(storeName, recordToUpdate);
         
         // Log the update
         await logAuditEntry(
@@ -141,13 +143,15 @@ export default function CategoryExplorer({ category }) {
           storeName,
           currentUser?.id || 'unknown',
           currentUser?.fullName || currentUser?.username || 'Unknown User',
-          savedRecord.id,
-          savedRecord,
+          recordToUpdate.id,
+          recordToUpdate,
           existingRecord
         );
+        setToast({ type: 'update', message: `${recordToUpdate.fullName || 'Record'} has been updated in the system successfully!` });
       } else {
         // Add Mode
-        const newId = await addRecord(storeName, savedRecord);
+        const recordToAdd = { ...savedRecord, officerName: currentUser?.fullName || currentUser?.username || 'Unknown Officer' };
+        const newId = await addRecord(storeName, recordToAdd);
         
         // Log the creation
         await logAuditEntry(
@@ -156,8 +160,9 @@ export default function CategoryExplorer({ category }) {
           currentUser?.id || 'unknown',
           currentUser?.fullName || currentUser?.username || 'Unknown User',
           newId,
-          savedRecord
+          recordToAdd
         );
+        setToast({ type: 'create', message: `${recordToAdd.fullName || 'Record'} has been inserted and posted to the system successfully!` });
       }
       setIsModalOpen(false);
       setEditingRecord(null);
@@ -184,11 +189,100 @@ export default function CategoryExplorer({ category }) {
           recordToDelete || { id }
         );
 
+        setToast({ type: 'delete', message: `${name || 'Record'} has been deleted from the system successfully!` });
         loadRecords();
         if (expandedRecordId === id) setExpandedRecordId(null);
       } catch (err) {
         console.error('Failed to delete record:', err);
       }
+    }
+  };
+
+  // Print Record Card
+  const handlePrintCard = (record) => {
+    const fieldRows = [
+      ['Full Name', record.fullName],
+      ['Personal ID', record.personalId],
+      ['Passport Number', record.passportNumber],
+      ['Box Number', record.boxNumber],
+      ['Shelf Number', record.shelfNumber],
+      ['Date', record.date],
+      ['Service Provided', record.serviceProvided],
+      ['Citizenship', record.citizenship],
+      ['Request Number', record.requestNumber],
+      ['Sex', record.sex],
+      ['EOID Number', record.eoidNumber],
+      ['Residence ID', record.residenceIdNumber],
+      ['Company', record.companyName],
+      ['ETD Number', record.etdNumber],
+      ['Eritrean ID', record.eritreanIdNumber],
+      ['Alien Passport No.', record.alienPassportNumber],
+      ['Yellow Card No.', record.yellowCardNumber],
+    ].filter(([, v]) => v !== undefined && v !== null && v !== '');
+
+    const rows = fieldRows.map(([label, value]) => `
+      <tr>
+        <td style="padding:9px 14px;font-size:0.82rem;font-weight:600;color:#64748b;width:42%;border-bottom:1px solid #e2e8f0;">${label}</td>
+        <td style="padding:9px 14px;font-size:0.82rem;color:#0f2b5c;border-bottom:1px solid #e2e8f0;font-weight:500;">${value}</td>
+      </tr>`).join('');
+
+    const divisionTitle = category.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const printDate = new Date().toLocaleString();
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Record Card — ${record.fullName || record.personalId}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f1f5f9; display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; }
+    .card { width: 100%; max-width: 560px; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
+    .no-print { }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .card { box-shadow: none; border-radius: 0; max-width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:24px 28px;color:#fff;">
+    <div style="font-size:0.7rem;font-weight:600;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;margin-bottom:6px;">ICS File Management System</div>
+    <div style="font-size:1.4rem;font-weight:800;letter-spacing:-0.3px;">${record.fullName || '—'}</div>
+    <div style="margin-top:4px;font-size:0.82rem;color:rgba(255,255,255,0.6);">Division: ${divisionTitle} &nbsp;|&nbsp; Record ID: ${record.id || '—'}</div>
+  </div>
+
+  <!-- Fields table -->
+  <table style="width:100%;border-collapse:collapse;">
+    <tbody>${rows}</tbody>
+  </table>
+
+  <!-- Footer -->
+  <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:0.72rem;color:#94a3b8;">Printed: ${printDate}</span>
+    <button class="no-print" onclick="window.print()" style="padding:8px 20px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.82rem;cursor:pointer;">🖨 Print</button>
+  </div>
+</div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    } else {
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `record_card_${(record.fullName || record.id || 'record').replace(/\s+/g, '_')}.html`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
   };
 
@@ -429,10 +523,10 @@ export default function CategoryExplorer({ category }) {
 
   const isAuthorized = !currentUser || currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR' || (currentUser.allowedDivisions || []).includes(category) || (currentUser.allowedDivisions || []).includes('eoid-normal') && category === 'eoid-normal' || (currentUser.allowedDivisions || []).includes('eoid-underage') && category === 'eoid-underage';
 
-  // Privilege checking function based on user role
-  const canAdd = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
-  const canEdit = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
-  const canDelete = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
+  // Privilege checking function based on user role and granular permissions
+  const canAdd = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR' || (currentUser.role === 'OFFICER' && currentUser.permissions?.add));
+  const canEdit = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR' || (currentUser.role === 'OFFICER' && currentUser.permissions?.edit));
+  const canDelete = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR' || (currentUser.role === 'OFFICER' && currentUser.permissions?.delete));
   const canImport = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPERVISOR');
 
   if (!isAuthorized) {
@@ -590,34 +684,34 @@ export default function CategoryExplorer({ category }) {
 
           return (
             <div className="glass-panel animate-fade-in" style={{ 
-              padding: '40px 32px', 
+              padding: '32px', 
               display: 'flex', 
-              gap: '28px',
+              gap: '24px',
               alignItems: 'center', 
-              background: 'rgba(15, 23, 42, 0.4)',
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(248, 250, 252, 0.85) 100%)',
               border: '1px solid var(--border-glass)',
               borderRadius: '16px',
             }}>
               <div style={{
-                width: '72px',
-                height: '72px',
-                borderRadius: '16px',
-                background: `${currentConfig.color}15`,
-                border: `1px solid ${currentConfig.color}40`,
+                width: '64px',
+                height: '64px',
+                borderRadius: '14px',
+                background: `${currentConfig.color}12`,
+                border: `1px solid ${currentConfig.color}30`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: currentConfig.color,
-                boxShadow: `0 0 20px ${currentConfig.color}20`,
+                boxShadow: `0 0 16px ${currentConfig.color}15`,
                 flexShrink: 0
               }}>
                 {currentConfig.icon}
               </div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 8px 0', fontWeight: 600, fontSize: '1.45rem', color: '#fff', letterSpacing: '0.5px' }}>
+                <h3 style={{ margin: '0 0 6px 0', fontWeight: 600, fontSize: '1.25rem', color: 'var(--text-primary)', letterSpacing: '0.3px' }}>
                   {currentConfig.title}
                 </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: '1.6', margin: 0 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: '1.55', margin: 0 }}>
                   {currentConfig.desc}
                 </p>
               </div>
@@ -632,8 +726,8 @@ export default function CategoryExplorer({ category }) {
         padding: '32px',
         borderRadius: '16px',
         border: '1px solid var(--border-glass)',
-        background: 'rgba(10, 18, 38, 0.55)',
-        backdropFilter: 'blur(12px)',
+        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%)',
+        backdropFilter: 'blur(8px)',
       }}>
 
         {/* Panel Header */}
@@ -641,17 +735,17 @@ export default function CategoryExplorer({ category }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
               width: 44, height: 44, borderRadius: '12px',
-              background: `${styles.labelColor}18`,
-              border: `1px solid ${styles.labelColor}40`,
+              background: `${styles.labelColor}12`,
+              border: `1px solid ${styles.labelColor}30`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: styles.labelColor,
-              boxShadow: `0 0 18px ${styles.labelColor}20`,
+              boxShadow: `0 0 14px ${styles.labelColor}15`,
               flexShrink: 0
             }}>
               <Search size={20} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem', color: '#fff', letterSpacing: '0.3px' }}>Record Lookup</h3>
+              <h3 style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-primary)', letterSpacing: '0.3px' }}>Record Lookup</h3>
               <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                 {records.length === 0
                   ? 'No records registered in this module yet.'
@@ -665,8 +759,8 @@ export default function CategoryExplorer({ category }) {
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '6px 14px', borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--border-glass)',
+                background: 'rgba(15, 43, 92, 0.04)',
                 color: 'var(--text-secondary)', fontSize: '0.82rem',
                 cursor: 'pointer'
               }}
@@ -692,8 +786,8 @@ export default function CategoryExplorer({ category }) {
               width: '100%',
               padding: '13px 16px 13px 42px',
               borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.08)',
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04))',
+              border: '1px solid rgba(15, 43, 92, 0.12)',
+              background: '#ffffff',
               color: 'var(--text-primary)',
               fontSize: '0.93rem',
               outline: 'none',
@@ -708,15 +802,15 @@ export default function CategoryExplorer({ category }) {
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '48px 16px', gap: '14px',
-            border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '12px',
-            background: 'rgba(255,255,255,0.015)'
+            border: '1px dashed rgba(15, 43, 92, 0.12)', borderRadius: '12px',
+            background: 'rgba(15, 43, 92, 0.015)'
           }}>
             <div style={{
               width: 56, height: 56, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(15, 43, 92, 0.04)',
+              border: '1px solid rgba(15, 43, 92, 0.08)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'rgba(255,255,255,0.25)'
+              color: 'rgba(15, 43, 92, 0.45)'
             }}>
               <Search size={22} />
             </div>
@@ -735,7 +829,7 @@ export default function CategoryExplorer({ category }) {
           }}>
             <AlertTriangle size={28} style={{ color: '#ef4444', opacity: 0.6 }} />
             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              No records matched <strong style={{ color: '#fff' }}>"{searchTerm}"</strong> in this module.
+              No records matched <strong style={{ color: 'var(--text-primary)' }}>"{searchTerm}"</strong> in this module.
             </p>
           </div>
         ) : (
@@ -750,13 +844,13 @@ export default function CategoryExplorer({ category }) {
                 padding: '18px 22px',
                 borderRadius: '12px',
                 border: '1px solid var(--border-glass)',
-                background: 'rgba(255,255,255,0.03)',
+                background: 'linear-gradient(180deg, #ffffff 0%, #fcfdfe 100%)',
               }}>
                 {/* Record Info */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '28px', flex: 1, minWidth: 0 }}>
                   <div>
                     <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Full Name</p>
-                    <p style={{ margin: '3px 0 0 0', fontWeight: 600, fontSize: '0.95rem', color: '#fff' }}>{r.fullName || '—'}</p>
+                    <p style={{ margin: '3px 0 0 0', fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{r.fullName || '—'}</p>
                   </div>
                   <div>
                     <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Personal ID</p>
@@ -777,6 +871,21 @@ export default function CategoryExplorer({ category }) {
                 </div>
                 {/* Action Buttons */}
                 <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  {/* Print Card button — always visible */}
+                  <button
+                    onClick={() => handlePrintCard(r)}
+                    title="Print Record Card"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 14px', borderRadius: '8px',
+                      border: '1px solid rgba(16,185,129,0.35)',
+                      background: 'rgba(16,185,129,0.08)',
+                      color: '#34d399', fontSize: '0.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Printer size={14} /> Print
+                  </button>
                   {canEdit && (
                     <button
                       onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
@@ -958,6 +1067,85 @@ export default function CategoryExplorer({ category }) {
                 }}
               />
             )}
+          </div>
+        </div>
+      )}
+      
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 3000,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%',
+            maxWidth: '380px',
+            padding: '24px 28px',
+            textAlign: 'center',
+            border: `1px solid ${toast.type === 'delete' ? 'rgba(239, 68, 68, 0.25)' : toast.type === 'create' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(59, 130, 246, 0.25)'}`,
+            background: '#ffffff',
+            boxShadow: '0 20px 40px rgba(15, 43, 92, 0.12)',
+            borderRadius: '16px'
+          }}>
+            {/* Header Colored Indicator Icon */}
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: toast.type === 'delete' ? 'rgba(239, 68, 68, 0.08)' : toast.type === 'create' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(59, 130, 246, 0.08)',
+              color: toast.type === 'delete' ? 'var(--accent-danger)' : toast.type === 'create' ? 'var(--accent-emerald)' : 'var(--accent-blue)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px auto'
+            }}>
+              {toast.type === 'delete' ? <Trash2 size={26} /> : toast.type === 'create' ? <CheckCircle size={26} /> : <Edit size={26} />}
+            </div>
+
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontWeight: 700,
+              fontSize: '1.15rem',
+              color: 'var(--text-primary)',
+              letterSpacing: '0.2px'
+            }}>
+              {toast.type === 'delete' ? 'Deleted Successfully' : toast.type === 'create' ? 'Posted Successfully' : 'Updated Successfully'}
+            </h3>
+
+            <p style={{
+              margin: '0 0 24px 0',
+              fontSize: '0.86rem',
+              color: 'var(--text-secondary)',
+              lineHeight: '1.5'
+            }}>
+              {toast.message}
+            </p>
+
+            <button
+              onClick={() => setToast(null)}
+              style={{
+                width: '100%',
+                padding: '11px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                color: '#ffffff',
+                background: toast.type === 'delete' ? 'var(--accent-danger)' : toast.type === 'create' ? 'var(--accent-emerald)' : 'var(--accent-blue)',
+                transition: 'opacity 0.15s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = 0.9}
+              onMouseLeave={e => e.currentTarget.style.opacity = 1}
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

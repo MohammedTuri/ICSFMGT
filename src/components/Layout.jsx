@@ -1,13 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Navigate, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import CommandPalette from './CommandPalette';
 
 export default function Layout() {
   const navigate = useNavigate();
   // Check for active authenticated user session
   const session = localStorage.getItem('ics_auth_user');
   const timeoutRef = useRef(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const resetTimer = () => {
     if (timeoutRef.current) {
@@ -46,6 +48,18 @@ export default function Layout() {
     };
   }, [session]);
 
+  // Ctrl+K / Cmd+K global shortcut
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen(open => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   if (!session) {
     // If no active session is found, redirect directly to the Login page
     return <Navigate to="/login" replace />;
@@ -60,6 +74,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }
+

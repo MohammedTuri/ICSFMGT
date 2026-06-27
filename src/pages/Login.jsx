@@ -67,7 +67,8 @@ export default function Login() {
         email: user.email,
         role: user.role,
         fullName: user.fullName,
-        allowedDivisions: user.allowedDivisions || []
+        allowedDivisions: user.allowedDivisions || [],
+        permissions: user.permissions || { add: false, edit: false, delete: false }
       }));
 
       navigate('/dashboard');

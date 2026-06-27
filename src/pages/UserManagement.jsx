@@ -27,7 +27,8 @@ export default function UserManagement() {
     confirmPassword: '',
     role: 'VIEWER',
     fullName: '',
-    allowedDivisions: []
+    allowedDivisions: [],
+    permissions: { add: false, edit: false, delete: false }
   });
   const [formError, setFormError] = useState(null);
 
@@ -60,7 +61,8 @@ export default function UserManagement() {
       confirmPassword: '',
       role: 'VIEWER',
       fullName: '',
-      allowedDivisions: []
+      allowedDivisions: [],
+      permissions: { add: false, edit: false, delete: false }
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -83,7 +85,8 @@ export default function UserManagement() {
       confirmPassword: '',
       role: user.role,
       fullName: user.fullName,
-      allowedDivisions: user.allowedDivisions || []
+      allowedDivisions: user.allowedDivisions || [],
+      permissions: user.permissions || { add: false, edit: false, delete: false }
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -107,7 +110,8 @@ export default function UserManagement() {
       role: formData.role,
       fullName: formData.fullName.trim(),
       // ADMIN & SUPERVISOR get all divisions; others get their assigned ones
-      allowedDivisions: needsDivision ? formData.allowedDivisions : ['visa','eoid-normal','eoid-underage','residence-id','etd','eritrean-id','alien-passport','yellow-card']
+      allowedDivisions: needsDivision ? formData.allowedDivisions : ['visa','eoid-normal','eoid-underage','residence-id','etd','eritrean-id','alien-passport','yellow-card'],
+      permissions: formData.role === 'OFFICER' ? formData.permissions : (formData.role === 'VIEWER' ? { add: false, edit: false, delete: false } : { add: true, edit: true, delete: true })
     };
 
     if (!userToSave.email || !userToSave.password || !userToSave.fullName) {
@@ -150,7 +154,8 @@ export default function UserManagement() {
             email: payload.email,
             role: payload.role,
             fullName: payload.fullName,
-            allowedDivisions: payload.allowedDivisions
+            allowedDivisions: payload.allowedDivisions,
+            permissions: payload.permissions
           }));
           window.location.reload();
         }
@@ -244,6 +249,7 @@ export default function UserManagement() {
               <th>Full Name</th>
               <th>Email</th>
               <th>System Role</th>
+              <th>Privileges</th>
               <th>Accessible Division</th>
               <th>Password (Encrypted)</th>
               <th>Created Date</th>
@@ -330,6 +336,19 @@ export default function UserManagement() {
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td>
+                    {u.role === 'OFFICER' ? (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: u.permissions?.add ? 'rgba(16,185,129,0.1)' : 'rgba(148,163,184,0.1)', color: u.permissions?.add ? 'var(--accent-emerald)' : 'var(--text-secondary)' }}>Add</span>
+                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: u.permissions?.edit ? 'rgba(59,130,246,0.1)' : 'rgba(148,163,184,0.1)', color: u.permissions?.edit ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>Edit</span>
+                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: u.permissions?.delete ? 'rgba(239,68,68,0.1)' : 'rgba(148,163,184,0.1)', color: u.permissions?.delete ? 'var(--accent-danger)' : 'var(--text-secondary)' }}>Delete</span>
+                      </div>
+                    ) : u.role === 'ADMIN' || u.role === 'SUPERVISOR' ? (
+                      <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(16,185,129,0.1)', color: 'var(--accent-emerald)' }}>Full Control</span>
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(148,163,184,0.1)', color: 'var(--text-secondary)' }}>Read Only</span>
+                    )}
                   </td>
                   <td>{getDivisionDisplay(u)}</td>
                   <td style={{ fontFamily: 'monospace', opacity: 0.6, fontSize: '0.8rem' }}>
@@ -564,6 +583,25 @@ export default function UserManagement() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {formData.role === 'OFFICER' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Officer Privileges</label>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    {['add', 'edit', 'delete'].map(perm => (
+                      <label key={perm} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.permissions[perm]}
+                          onChange={(e) => setFormData(prev => ({ ...prev, permissions: { ...prev.permissions, [perm]: e.target.checked } }))}
+                          style={{ accentColor: 'var(--accent-emerald)', cursor: 'pointer' }}
+                        />
+                        {perm.charAt(0).toUpperCase() + perm.slice(1)} Records
+                      </label>
+                    ))}
                   </div>
                 </div>
               )}
