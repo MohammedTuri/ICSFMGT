@@ -365,22 +365,25 @@ export default function AuditLog() {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'flex-end', marginTop: '8px' }}>
           <button onClick={handleReset} style={{
-            flex: 1, padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-glass)',
+            padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--border-glass)',
             background: '#fff', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}><X size={14} style={{ display: 'inline', marginRight: '6px' }} /> Reset</button>
+            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap'
+          }}><X size={16} style={{ marginRight: '8px' }} /> Reset</button>
+          
           <button onClick={exportAuditLogs} style={{
-            flex: 1, padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-glass)',
-            background: 'rgba(29,78,216,0.1)', color: '#1d4ed8', fontWeight: 600, cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}><Download size={14} style={{ display: 'inline', marginRight: '6px' }} /> Export CSV</button>
+            padding: '10px 20px', borderRadius: '8px', border: '1px solid rgba(29,78,216,0.3)',
+            background: 'rgba(29,78,216,0.05)', color: '#1d4ed8', fontWeight: 600, cursor: 'pointer',
+            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap'
+          }}><Download size={16} style={{ marginRight: '8px' }} /> Export CSV</button>
+          
           <button onClick={generateReport} style={{
-            flex: 1, padding: '10px 16px', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.3)',
-            background: 'rgba(16,185,129,0.1)', color: '#059669', fontWeight: 600, cursor: 'pointer',
-            transition: 'all 0.2s', whiteSpace: 'nowrap'
-          }}><ClipboardList size={14} style={{ display: 'inline', marginRight: '6px' }} /> Generate Report</button>
+            padding: '10px 20px', borderRadius: '8px', border: 'none',
+            background: 'linear-gradient(135deg, #059669, #10b981)', color: '#fff', fontWeight: 600, cursor: 'pointer',
+            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap',
+            boxShadow: '0 4px 12px rgba(5,150,105,0.2)'
+          }}><ClipboardList size={16} style={{ marginRight: '8px' }} /> Generate Report</button>
         </div>
       </div>
 

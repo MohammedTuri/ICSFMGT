@@ -134,8 +134,7 @@ export default function CategoryExplorer({ category }) {
       if (savedRecord.id) {
         // Edit Mode
         const existingRecord = records.find(r => r.id === savedRecord.id);
-        const recordToUpdate = { ...savedRecord, officerName: currentUser?.fullName || currentUser?.username || 'Unknown Officer' };
-        await updateRecord(storeName, recordToUpdate);
+        await updateRecord(storeName, savedRecord);
         
         // Log the update
         await logAuditEntry(
@@ -143,15 +142,14 @@ export default function CategoryExplorer({ category }) {
           storeName,
           currentUser?.id || 'unknown',
           currentUser?.fullName || currentUser?.username || 'Unknown User',
-          recordToUpdate.id,
-          recordToUpdate,
+          savedRecord.id,
+          savedRecord,
           existingRecord
         );
-        setToast({ type: 'update', message: `${recordToUpdate.fullName || 'Record'} has been updated in the system successfully!` });
+        setToast({ type: 'update', message: `${savedRecord.fullName || 'Record'} has been updated in the system successfully!` });
       } else {
         // Add Mode
-        const recordToAdd = { ...savedRecord, officerName: currentUser?.fullName || currentUser?.username || 'Unknown Officer' };
-        const newId = await addRecord(storeName, recordToAdd);
+        const newId = await addRecord(storeName, savedRecord);
         
         // Log the creation
         await logAuditEntry(
@@ -160,9 +158,9 @@ export default function CategoryExplorer({ category }) {
           currentUser?.id || 'unknown',
           currentUser?.fullName || currentUser?.username || 'Unknown User',
           newId,
-          recordToAdd
+          savedRecord
         );
-        setToast({ type: 'create', message: `${recordToAdd.fullName || 'Record'} has been inserted and posted to the system successfully!` });
+        setToast({ type: 'create', message: `${savedRecord.fullName || 'Record'} has been inserted and posted to the system successfully!` });
       }
       setIsModalOpen(false);
       setEditingRecord(null);

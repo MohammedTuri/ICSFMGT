@@ -8,7 +8,7 @@ import {
   ChevronUp, Calendar, Users, FileDown, ArrowRight, Layers,
   Edit, Trash2, TrendingUp
 } from 'lucide-react';
-import { getAllRecords, addRecord, updateRecord, deleteRecord, getAuditLogs } from '../utils/db';
+import { getAllRecords, addRecord, updateRecord, deleteRecord, getAuditLogs, getAllUsers } from '../utils/db';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import RecordFormModal from '../components/RecordFormModal';
 /* ─────────────────────────────────────────────────────
@@ -28,10 +28,7 @@ const DIVISIONS = [
 const getDivisionConfig = (key) => DIVISIONS.find(d => d.key === key) || {};
 
 const CITIZENSHIPS = [
-  '', 'ETHIOPIAN', 'ERITREAN', 'SOMALI', 'KENYAN', 'SUDANESE', 'SOUTH SUDANESE',
-  'DJIBOUTIAN', 'UGANDAN', 'TANZANIAN', 'RWANDAN', 'CONGOLESE', 'NIGERIAN',
-  'GHANAIAN', 'EGYPTIAN', 'CHINESE', 'INDIAN', 'AMERICAN', 'BRITISH', 'FRENCH',
-  'GERMAN', 'ITALIAN', 'DUTCH', 'SWEDISH', 'OTHER'
+  '', 'AFGHAN', 'ALBANIAN', 'ALGERIAN', 'AMERICAN', 'ANDORRAN', 'ANGOLAN', 'ANTIGUAN', 'ARGENTINE', 'ARMENIAN', 'AUSTRALIAN', 'AUSTRIAN', 'AZERBAIJANI', 'BAHAMIAN', 'BAHRAINI', 'BANGLADESHI', 'BARBADIAN', 'BELARUSIAN', 'BELGIAN', 'BELIZEAN', 'BENINESE', 'BHUTANESE', 'BOLIVIAN', 'BOSNIAN', 'BOTSWANAN', 'BRAZILIAN', 'BRITISH', 'BRUNEIAN', 'BULGARIAN', 'BURKINABE', 'BURMESE', 'BURUNDIAN', 'CAMBODIAN', 'CAMEROONIAN', 'CANADIAN', 'CAPE VERDEAN', 'CENTRAL AFRICAN', 'CHADIAN', 'CHILEAN', 'CHINESE', 'COLOMBIAN', 'COMORAN', 'CONGOLESE', 'COSTA RICAN', 'CROATIAN', 'CUBAN', 'CYPRIOT', 'CZECH', 'DANISH', 'DJIBOUTIAN', 'DOMINICAN', 'DUTCH', 'EAST TIMORESE', 'ECUADORIAN', 'EGYPTIAN', 'EMIRATI', 'EQUATORIAL GUINEAN', 'ERITREAN', 'ESTONIAN', 'ESWATINI', 'ETHIOPIAN', 'FIJIAN', 'FINNISH', 'FRENCH', 'GABONESE', 'GAMBIAN', 'GEORGIAN', 'GERMAN', 'GHANAIAN', 'GREEK', 'GRENADIAN', 'GUATEMALAN', 'GUINEAN', 'GUINEA-BISSAUAN', 'GUYANESE', 'HAITIAN', 'HONDURAN', 'HUNGARIAN', 'ICELANDIC', 'INDIAN', 'INDONESIAN', 'IRANIAN', 'IRAQI', 'IRISH', 'ISRAELI', 'ITALIAN', 'IVORIAN', 'JAMAICAN', 'JAPANESE', 'JORDANIAN', 'KAZAKH', 'KENYAN', 'KIRIBATI', 'KOREAN (NORTH)', 'KOREAN (SOUTH)', 'KUWAITI', 'KYRGYZ', 'LAOTIAN', 'LATVIAN', 'LEBANESE', 'LIBERIAN', 'LIBYAN', 'LIECHTENSTEINER', 'LITHUANIAN', 'LUXEMBOURGER', 'MACEDONIAN', 'MALAGASY', 'MALAWIAN', 'MALAYSIAN', 'MALDIVIAN', 'MALIAN', 'MALTESE', 'MARSHALLESE', 'MAURITANIAN', 'MAURITIAN', 'MEXICAN', 'MICRONESIAN', 'MOLDOVAN', 'MONACAN', 'MONGOLIAN', 'MONTENEGRIN', 'MOROCCAN', 'MOZAMBICAN', 'NAMIBIAN', 'NAURUAN', 'NEPALESE', 'NEW ZEALANDER', 'NICARAGUAN', 'NIGERIEN', 'NIGERIAN', 'NORWEGIAN', 'OMANI', 'PAKISTANI', 'PALAUAN', 'PALESTINIAN', 'PANAMANIAN', 'PAPUA NEW GUINEAN', 'PARAGUAYAN', 'PERUVIAN', 'PHILIPPINE', 'POLISH', 'PORTUGUESE', 'QATARI', 'ROMANIAN', 'RUSSIAN', 'RWANDAN', 'SAINT LUCIAN', 'SALVADORAN', 'SAMOAN', 'SAN MARINESE', 'SAO TOMEAN', 'SAUDI', 'SENEGALESE', 'SERBIAN', 'SEYCHELLOIS', 'SIERRA LEONEAN', 'SINGAPOREAN', 'SLOVAK', 'SLOVENIAN', 'SOLOMON ISLANDER', 'SOMALI', 'SOUTH AFRICAN', 'SOUTH SUDANESE', 'SPANISH', 'SRI LANKAN', 'SUDANESE', 'SURINAMESE', 'SWAZI', 'SWEDISH', 'SWISS', 'SYRIAN', 'TAIWANESE', 'TAJIK', 'TANZANIAN', 'THAI', 'TOGOLESE', 'TONGAN', 'TRINIDADIAN', 'TUNISIAN', 'TURKISH', 'TURKMEN', 'TUVALUAN', 'UGANDAN', 'UKRAINIAN', 'URUGUAYAN', 'UZBEK', 'VANUATUAN', 'VATICAN', 'VENEZUELAN', 'VIETNAMESE', 'YEMENI', 'ZAMBIAN', 'ZIMBABWEAN', 'OTHER'
 ];
 
 /* ─────────────────────────────────────────────────────
@@ -83,6 +80,7 @@ export default function Reports() {
     attachmentStatus: '',
     serviceKeyword: '',
     keyword: '',
+    officer: ''
   });
 
   /* ── Per-dropdown position state: null = closed, {top,left,width} = open ── */
@@ -90,10 +88,14 @@ export default function Reports() {
   const [sexDropPos,         setSexDropPos]         = useState(null);
   const [citizenshipDropPos, setCitizenshipDropPos] = useState(null);
   const [attachDropPos,      setAttachDropPos]      = useState(null);
+  const [officerDropPos,     setOfficerDropPos]     = useState(null);
+  const [officerOptions,     setOfficerOptions]     = useState([]);
+
   const divDropdownRef         = useRef(null);
   const sexDropdownRef         = useRef(null);
   const attachDropdownRef      = useRef(null);
   const citizenshipDropdownRef = useRef(null);
+  const officerDropdownRef     = useRef(null);
 
   /* Helper: open one dropdown, close the rest, compute fixed position from element rect */
   const toggleDrop = (ref, setter, others) => {
@@ -127,6 +129,7 @@ export default function Reports() {
       if (sexDropdownRef.current         && !sexDropdownRef.current.contains(e.target))         setSexDropPos(null);
       if (attachDropdownRef.current      && !attachDropdownRef.current.contains(e.target))      setAttachDropPos(null);
       if (citizenshipDropdownRef.current && !citizenshipDropdownRef.current.contains(e.target)) setCitizenshipDropPos(null);
+      if (officerDropdownRef.current     && !officerDropdownRef.current.contains(e.target))     setOfficerDropPos(null);
     };
     const handleScroll = (e) => {
       if (e.target.closest && e.target.closest('.rpt-fixed-dropdown')) return;
@@ -134,6 +137,7 @@ export default function Reports() {
       setSexDropPos(null);
       setCitizenshipDropPos(null);
       setAttachDropPos(null);
+      setOfficerDropPos(null);
     };
     document.addEventListener('mousedown', handler);
     window.addEventListener('scroll', handleScroll, true);
@@ -159,7 +163,7 @@ export default function Reports() {
     };
   }, []);
 
-  /* ── Load auth ── */
+  /* ── Load auth & Preload Users ── */
   useEffect(() => {
     const session = JSON.parse(localStorage.getItem('ics_auth_user')) || {};
     setCurrentUser(session);
@@ -174,6 +178,12 @@ export default function Reports() {
     } else {
       setAllowedDivisions(DIVISIONS.map(d => d.key));
     }
+
+    // Preload users for the filter dropdown so it's available before they generate the report
+    getAllUsers().then(users => {
+      const allUserNames = users.filter(u => u.role !== 'SUPERADMIN').map(u => u.fullName || u.email || u.username);
+      setOfficerOptions(allUserNames.sort());
+    }).catch(console.error);
   }, []);
 
   /* ── Load all accessible data ── */
@@ -190,27 +200,53 @@ export default function Reports() {
         const records = await getAllRecords(div.store);
         records.forEach(r => all.push({ ...r, _division: div.key, _divisionLabel: div.label }));
       }
-      setAllData(all);
       
       // Load Officer Performance
       try {
+        const users = await getAllUsers();
+        const userMap = {};
+        const allUserNames = users.filter(u => u.role !== 'SUPERADMIN').map(u => u.fullName || u.email || u.username);
+        
+        users.forEach(u => {
+          userMap[u.username] = u.fullName || u.email || u.username;
+        });
+
+        // Set initial options so it always lists users
+        setOfficerOptions(allUserNames.sort());
+
         const logs = await getAuditLogs();
         const performanceMap = {};
+        const recordOfficerMap = {};
         logs.forEach(log => {
           if (log.action === 'CREATE' || log.action === 'UPDATE') {
-            const officer = log.userName || 'Unknown Officer';
-            if (!performanceMap[officer]) {
-              performanceMap[officer] = { name: officer, added: 0, edited: 0 };
+            const officerId = log.userName || 'Unknown Officer';
+            const officerName = userMap[officerId] || officerId;
+            if (!recordOfficerMap[log.recordId]) {
+              recordOfficerMap[log.recordId] = officerName;
             }
-            if (log.action === 'CREATE') performanceMap[officer].added += 1;
-            if (log.action === 'UPDATE') performanceMap[officer].edited += 1;
+            if (!performanceMap[officerName]) {
+              performanceMap[officerName] = { name: officerName, added: 0, edited: 0 };
+            }
+            if (log.action === 'CREATE') performanceMap[officerName].added += 1;
+            if (log.action === 'UPDATE') performanceMap[officerName].edited += 1;
           }
         });
         setOfficerPerformance(Object.values(performanceMap));
+        
+        // Include any that might be in logs but not active users anymore
+        Object.keys(performanceMap).forEach(name => {
+          if (!allUserNames.includes(name) && name !== 'Unknown Officer') allUserNames.push(name);
+        });
+        setOfficerOptions(allUserNames.sort());
+
+        all.forEach(r => {
+          r._officer = recordOfficerMap[r.id] || 'System/Admin';
+        });
       } catch (err) {
-        console.error('Audit load error:', err);
+        console.error('Audit/User load error:', err);
       }
 
+      setAllData(all);
       setDataLoaded(true);
       applyFilters(all, filters);
     } catch (err) {
@@ -263,6 +299,9 @@ export default function Reports() {
         (r.shelfNumber && r.shelfNumber.toUpperCase().includes(term))
       );
     }
+    if (f.officer) {
+      result = result.filter(r => r._officer === f.officer);
+    }
 
     result.sort((a, b) => {
       if (a.date && b.date) return b.date.localeCompare(a.date);
@@ -299,7 +338,7 @@ export default function Reports() {
   const handleReset = () => {
     const fresh = {
       divisions: [], dateFrom: '', dateTo: '', sex: '',
-      citizenship: '', attachmentStatus: '', serviceKeyword: '', keyword: '',
+      citizenship: '', attachmentStatus: '', serviceKeyword: '', keyword: '', officer: ''
     };
     setFilters(fresh);
     if (dataLoaded) applyFilters(allData, fresh);
@@ -652,7 +691,7 @@ export default function Reports() {
 
           {/* Cell: Attachment Status */}
           <div className="rpt-cell" ref={attachDropdownRef} style={{ flex: '0.8' }}>
-            <div className="rpt-cell-inner" onClick={() => toggleDrop(attachDropdownRef, setAttachDropPos, [setDivDropPos, setSexDropPos, setCitizenshipDropPos])}>
+            <div className="rpt-cell-inner" onClick={() => toggleDrop(attachDropdownRef, setAttachDropPos, [setDivDropPos, setSexDropPos, setCitizenshipDropPos, setOfficerDropPos])}>
               <span className="rpt-cell-icon"><FileDown size={16} /></span>
               <div className="rpt-cell-content">
                 <span className="rpt-cell-label">Scans</span>
@@ -660,6 +699,20 @@ export default function Reports() {
               </div>
               <ChevronDown size={14} className="rpt-cell-chevron" style={{
                 transform: attachDropPos ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s'
+              }} />
+            </div>
+          </div>
+
+          {/* Cell: Officer */}
+          <div className="rpt-cell" ref={officerDropdownRef} style={{ flex: '1' }}>
+            <div className="rpt-cell-inner" onClick={() => toggleDrop(officerDropdownRef, setOfficerDropPos, [setDivDropPos, setSexDropPos, setCitizenshipDropPos, setAttachDropPos])}>
+              <span className="rpt-cell-icon"><Award size={16} /></span>
+              <div className="rpt-cell-content">
+                <span className="rpt-cell-label">Officer</span>
+                <span className="rpt-cell-value">{filters.officer || 'All Users'}</span>
+              </div>
+              <ChevronDown size={14} className="rpt-cell-chevron" style={{
+                transform: officerDropPos ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s'
               }} />
             </div>
           </div>
@@ -831,6 +884,7 @@ export default function Reports() {
                         <th>Request No.</th>
                         <th>Date</th>
                         <th>Service</th>
+                        <th>Officer</th>
                         <th>Scans</th>
                         <th className="no-print">Actions</th>
                       </tr>
@@ -862,6 +916,7 @@ export default function Reports() {
                             <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.requestNumber || '—'}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>{r.date || '—'}</td>
                             <td>{r.serviceProvided || '—'}</td>
+                            <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: 'var(--accent-blue)' }}>{r._officer}</td>
                             <td>
                               {hasScans ? (
                                 <span className="rpt-scan-badge rpt-scan-yes">
@@ -985,6 +1040,23 @@ export default function Reports() {
           activeTab={modalActiveTab || editingRecord?._division || ''}
           initialRecord={editingRecord}
         />
+      )}
+
+      {officerDropPos && ReactDOM.createPortal(
+        <div className="rpt-fixed-dropdown" style={{ top: officerDropPos.top, left: officerDropPos.left, minWidth: Math.max(officerDropPos.width, 160) }}>
+          <div className="rpt-dropdown-item" onClick={() => { handleFilterChange('officer', ''); setOfficerDropPos(null); }}>
+            {!filters.officer && <CheckCircle size={12} style={{ color: 'var(--accent-emerald)' }} />}
+            <span style={{ marginLeft: !filters.officer ? '0' : '16px' }}>All Users</span>
+          </div>
+          {officerOptions.map(o => (
+            <div key={o} className={`rpt-dropdown-item ${filters.officer === o ? 'active' : ''}`}
+              onClick={() => { handleFilterChange('officer', o); setOfficerDropPos(null); }}>
+              {filters.officer === o && <CheckCircle size={12} style={{ color: 'var(--accent-emerald)' }} />}
+              <span style={{ marginLeft: filters.officer === o ? '0' : '16px' }}>{o}</span>
+            </div>
+          ))}
+        </div>,
+        document.body
       )}
         </>
       )}
@@ -1113,15 +1185,28 @@ export default function Reports() {
           align-items: stretch;
           padding: 0;
           border-bottom: 1px solid rgba(15, 43, 92, 0.06);
-          overflow: visible;
+          overflow-x: auto;
+          overflow-y: hidden;
           position: relative;
           z-index: 10;
+        }
+        /* Custom scrollbar for cells row */
+        .rpt-cells-row::-webkit-scrollbar {
+          height: 6px;
+        }
+        .rpt-cells-row::-webkit-scrollbar-track {
+          background: rgba(15, 43, 92, 0.02);
+        }
+        .rpt-cells-row::-webkit-scrollbar-thumb {
+          background: rgba(15, 43, 92, 0.15);
+          border-radius: 4px;
         }
 
         .rpt-cell {
           position: relative;
           border-right: 1px solid rgba(15, 43, 92, 0.08);
-          min-width: 0;
+          min-width: 140px;
+          flex: 1 0 auto !important;
         }
         .rpt-cell:last-of-type { border-right: none; }
 
