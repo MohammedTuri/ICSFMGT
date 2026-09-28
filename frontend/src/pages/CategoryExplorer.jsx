@@ -817,17 +817,27 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '16px',
         paddingLeft: '16px',
+        paddingRight: '16px',
         ...styles
       }}>
-        <div>
-          <h2 style={{ margin: 0, fontWeight: 300, fontSize: '1.8rem', letterSpacing: '1px' }}>{getTitle()}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
+          <h2 style={{ margin: 0, fontWeight: 300, fontSize: '1.75rem', letterSpacing: '0.5px' }}>{getTitle()}</h2>
         </div>
         
         {/* Actions */}
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'flex-end', 
+          flexWrap: 'wrap', 
+          gap: '8px',
+          marginLeft: 'auto'
+        }}>
           {category.startsWith('eoid') && (
-            <select style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 8px' }} value={currentEoidOption} onChange={e => handleEoidSelection(e.target.value)}>
+            <select style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.84rem' }} value={currentEoidOption} onChange={e => handleEoidSelection(e.target.value)}>
               {eoidDropdownOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
@@ -835,38 +845,38 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
           )}
 
           {canAdd && (
-            <button className="glass-button" onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}>
-              <Plus size={18} /> Add Entry
+            <button className="glass-button" style={{ padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }} onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}>
+              <Plus size={16} /> Add Entry
             </button>
           )}
 
           {canAdd && (
             <button
               className="glass-button"
-              style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', border: '1px solid #059669', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)' }}
+              style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', border: '1px solid #059669', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)', padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}
               onClick={() => setIsBulkIngestOpen(true)}
               title="Bulk upload legacy dossiers and multi-page PDFs with automated OCR indexing"
             >
-              <Sparkles size={18} /> Bulk Ingest &amp; OCR
+              <Sparkles size={16} /> Bulk Ingest &amp; OCR
             </button>
           )}
 
           <button
             className="glass-button"
-            style={{ background: '#0f172a', color: '#ffffff', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{ background: '#0f172a', color: '#ffffff', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}
             onClick={() => setBarcodeModalRecord(filteredRecords[0] || records[0] || { id: 'sample', fullName: 'Sample File Tag', boxNumber: `${(category || 'DIV').toUpperCase()}-B1-01` })}
             title="Generate and print QR codes and barcodes for files & boxes"
           >
-            <QrCode size={18} /> QR / Barcodes
+            <QrCode size={16} /> QR / Barcodes
           </button>
 
-          <button className="glass-button" style={{ background: '#3b82f6', color: '#ffffff', border: '1px solid #2563eb', boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)' }} onClick={handleExportExcel}>
-            <Download size={18} /> Export Excel
+          <button className="glass-button" style={{ background: '#3b82f6', color: '#ffffff', border: '1px solid #2563eb', boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)', padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }} onClick={handleExportExcel}>
+            <Download size={16} /> Export Excel
           </button>
 
           {canImport && (
-            <label className="glass-button" style={{ background: '#ef4444', color: '#ffffff', border: '1px solid #dc2626', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', cursor: 'pointer' }}>
-              <Upload size={18} /> Import Excel
+            <label className="glass-button" style={{ background: '#ef4444', color: '#ffffff', border: '1px solid #dc2626', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', cursor: 'pointer', padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
+              <Upload size={16} /> Import Excel
               <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImportExcel} />
             </label>
           )}

@@ -50,6 +50,24 @@ const BULK_DOCUMENT_TYPES = {
     { key: 'applicationForm', label: 'APPLICATION FORM' },
     { key: 'entryVisa', label: 'ENTRY VISA' },
   ],
+  eoid: [
+    { key: 'passportCopy', label: 'PASSPORT COPY' },
+    { key: 'applicationForm', label: 'APPLICATION FORM' },
+    { key: 'birthCertificate', label: 'BIRTH CERTIFICATE' },
+    { key: 'familyOrCourtDoc', label: 'FAMILY DOCUMENT OR COURT LETTER' },
+  ],
+  'eoid-normal': [
+    { key: 'passportCopy', label: 'PASSPORT COPY' },
+    { key: 'applicationForm', label: 'APPLICATION FORM' },
+    { key: 'birthCertificate', label: 'BIRTH CERTIFICATE' },
+    { key: 'familyOrCourtDoc', label: 'FAMILY DOCUMENT OR COURT LETTER' },
+  ],
+  'eoid-underage': [
+    { key: 'passportCopy', label: 'PASSPORT COPY' },
+    { key: 'applicationForm', label: 'APPLICATION FORM' },
+    { key: 'birthCertificate', label: 'BIRTH CERTIFICATE' },
+    { key: 'familyOrCourtDoc', label: 'FAMILY DOCUMENT OR COURT LETTER' },
+  ],
   'residence-id': [
     { key: 'passportCopy', label: 'PASSPORT COPY' },
     { key: 'applicationForm', label: 'APPLICATION FORM' },
@@ -84,6 +102,12 @@ function classifyBulkDocument(category, file, ocrText, extracted) {
   const text = (ocrText || '').toUpperCase();
   const source = `${filename} ${text}`;
   if (category === 'visa') return classifyVisaDocument(file, ocrText, extracted);
+  if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') {
+    if (/BIRTH CERTIFICATE|BIRTH|NASCIMENTO|ACTE DE NAISSANCE/.test(source)) return 'birthCertificate';
+    if (/COURT|FAMILY|MARRIAGE|GUARDIAN|LEGAL|DIVORCE/.test(source)) return 'familyOrCourtDoc';
+    if (/APPLICATION FORM|APPLICATION|DEMANDE/.test(source)) return 'applicationForm';
+    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passportCopy';
+  }
   if (category === 'residence-id') {
     if (/AUTHORIZED BODY|AUTHORITY DECISION|APPROVAL|DECISION/.test(source)) return 'authorizedBodyDecision';
     if (/VALIDITY PERIOD|VALIDITY|EXPIRY|EXPIRATION/.test(source)) return 'validityPeriod';
@@ -457,6 +481,8 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
         const attachments = BULK_DOCUMENT_TYPES[category]
           ? item.attachments
           : [{ ...item.attachment, ocrText: item.ocrText || '' }];
+        const isUnderage = category === 'eoid-underage';
+        const isEoid = category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage';
         const record = {
           fullName: composeFullName(item).toUpperCase(),
           firstName: item.firstName?.trim().toUpperCase() || '',
@@ -480,6 +506,7 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
           ocrText: item.ocrText || '',
           createdBy: user?.username || 'admin',
           createdAt: new Date().toISOString(),
+          ...(isEoid ? { eoidType: isUnderage ? 'EOID-UNDER-AGE' : 'EOID-NORMAL' } : {})
         };
         await addRecord(category, record);
         successCount++;

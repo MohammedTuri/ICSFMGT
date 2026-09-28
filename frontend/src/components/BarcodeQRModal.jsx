@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Printer, Copy, Check } from 'lucide-react';
+import QRCode from 'qrcode';
 
 // Code 128 character set B
 const CODE128_B = [
@@ -91,9 +92,34 @@ function BarcodeSVG({ value, height = 68 }) {
 }
 
 function QRImg({ data, size = 180 }) {
-  const url = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encodeURIComponent(data)}&choe=UTF-8&chld=M|2`;
-  return <img src={url} alt="QR Code" width={size} height={size}
-    style={{ display: 'block', imageRendering: 'pixelated', borderRadius: '4px' }} />;
+  const [dataUrl, setDataUrl] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    if (!data) return;
+    QRCode.toDataURL(data, { width: size, margin: 1, errorCorrectionLevel: 'M' })
+      .then(url => { if (active) setDataUrl(url); })
+      .catch(err => console.error('QR generation error:', err));
+    return () => { active = false; };
+  }, [data, size]);
+
+  if (!dataUrl) {
+    return (
+      <div style={{ width: size, height: size, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>
+        Rendering QR...
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={dataUrl}
+      alt="QR Code"
+      width={size}
+      height={size}
+      style={{ display: 'block', imageRendering: 'pixelated', borderRadius: '4px' }}
+    />
+  );
 }
 
 function openPrintWin(html, filename) {
@@ -168,9 +194,14 @@ export default function BarcodeQRModal({ isOpen, onClose, record, category, allR
     navigator.clipboard?.writeText(qrData).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const handlePrintSingle = () => {
+  const handlePrintSingle = async () => {
     const { svg: barSvg } = buildBarSVGStr(barVal, 2, 62);
-    const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=160x160&chl=${encodeURIComponent(qrData)}&choe=UTF-8&chld=M|2`;
+    let qrUrl = '';
+    try {
+      qrUrl = await QRCode.toDataURL(qrData, { width: 160, margin: 1, errorCorrectionLevel: 'M' });
+    } catch (err) {
+      console.error('Offline QR generation error:', err);
+    }
     const fields = [
       ['Building', record.building],
       ['Room / Vault', record.room],
@@ -207,17 +238,22 @@ export default function BarcodeQRModal({ isOpen, onClose, record, category, allR
 </div></body></html>`, `tag_${barVal}.html`);
   };
 
-  const handlePrintBatch = () => {
+  const handlePrintBatch = async () => {
     const recs = allRecords || [];
     if (!recs.length) { alert('No records to print.'); return; }
-    const cards = recs.map(rec => {
+    const cards = (await Promise.all(recs.map(async rec => {
       const bv = (rec.boxNumber || rec.personalId || `REC-${rec.id || '000'}`).toUpperCase();
       const pl = JSON.stringify({ id: rec.id, name: rec.fullName || '', passport: rec.passportNumber || '', bld: rec.building || '', room: rec.room || '', shelf: rec.shelfNumber || '', box: rec.boxNumber || '', fld: rec.folderNumber || '', div: category || '' });
-      const qr = `https://chart.googleapis.com/chart?cht=qr&chs=100x100&chl=${encodeURIComponent(pl)}&choe=UTF-8&chld=M|2`;
+      let qr = '';
+      try {
+        qr = await QRCode.toDataURL(pl, { width: 100, margin: 1, errorCorrectionLevel: 'M' });
+      } catch (err) {
+        console.error('Offline batch QR generation error:', err);
+      }
       const { svg: bs } = buildBarSVGStr(bv, 1.4, 40);
       const locStr = [rec.building, rec.room, rec.shelfNumber, rec.boxNumber, rec.folderNumber].filter(Boolean).join(' ➔ ');
       return `<div class="tag"><div class="thdr"><div class="tname">${rec.fullName || bv}</div><div class="tsub">${divTitle} · Box: ${rec.boxNumber || '—'} · ID: ${rec.id || '—'}</div></div><div class="tbody"><div class="tc"><div class="tlbl">QR</div><img src="${qr}" width="90" height="90" alt="QR"/></div><div class="tc" style="flex:1"><div class="tlbl">Barcode</div>${bs}<div class="tmeta">🏛️ ${locStr || 'Shelf: ' + (rec.shelfNumber || '—')}</div><div class="tmeta">Passport: ${rec.passportNumber || '—'}</div></div></div></div>`;
-    }).join('');
+    }))).join('');
     openPrintWin(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Batch Tags — ${divTitle}</title>
 <style>${BATCH_CSS}</style></head>
 <body>

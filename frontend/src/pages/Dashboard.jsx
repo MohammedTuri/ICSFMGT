@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Users, AlertTriangle, FileText, Fingerprint, Award, FileWarning, Search, Eye, FileDown, CheckCircle, IdCard, Globe, CreditCard, Clock, Plus, Edit2, Trash2, Download, Package, Building2, MapPin } from 'lucide-react';
+import {
+  Users, AlertTriangle, FileText, Fingerprint, Award, FileWarning,
+  Search, Eye, FileDown, CheckCircle, IdCard, Globe, Clock,
+  Plus, Edit2, Trash2, Download, Package, Building2, Shield,
+  ArrowUpRight, Sparkles, Filter, ChevronRight, Calendar, UserCheck
+} from 'lucide-react';
 import { getAllRecords, getAuditLogs, getSystemModules, getModuleOverrides } from '../utils/db';
 import { useBranch } from '../context/BranchContext';
 
@@ -22,6 +27,7 @@ export default function Dashboard() {
     usersCount: 0,
     activeUsers: 0
   });
+
   const [dbData, setDbData] = useState({
     visa: [],
     eoid: [],
@@ -31,15 +37,23 @@ export default function Dashboard() {
     eritreanId: [],
     alienPassport: []
   });
-  const [recentRecords, setRecentRecords] = useState([]);
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('ALL');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [dashboardViewMode, setDashboardViewMode] = useState('cards');
   const [customModules, setCustomModules] = useState([]);
   const [customStats, setCustomStats] = useState({});
   const [customRecordsMap, setCustomRecordsMap] = useState({});
+  const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Live Clock
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load Data
   useEffect(() => {
     async function loadStats() {
       try {
@@ -76,7 +90,6 @@ export default function Dashboard() {
         const eIdCount = eritreanId.length;
         const aPassCount = alienPassport.length;
 
-        // Calculate missing attachments
         const countMissing = (records) => {
           return records.filter(r => !r.attachments || r.attachments.length === 0).length;
         };
@@ -106,21 +119,6 @@ export default function Dashboard() {
           eritreanId,
           alienPassport
         });
-
-        // Assemble recent records
-        const allRecords = [
-          ...visa.map(r => ({ ...r, category: 'VISA Files', storeName: 'visa' })),
-          ...eoid.map(r => ({ ...r, category: 'Ethiopian Origin ID File', storeName: 'eoid' })),
-          ...residence.map(r => ({ ...r, category: 'Residence ID File', storeName: 'residence_id' })),
-          ...residenceCancellation.map(r => ({ ...r, category: 'Residence ID Cancellation', storeName: 'residence_id_cancellation' })),
-          ...etd.map(r => ({ ...r, category: 'Emergency Travel Document File', storeName: 'etd' })),
-          ...eritreanId.map(r => ({ ...r, category: 'Eritrean ID File', storeName: 'eritrean_id' })),
-          ...alienPassport.map(r => ({ ...r, category: 'Alien Passport File', storeName: 'alien_passport' }))
-        ];
-
-        // Sort by updatedAt or createdAt descending
-        allRecords.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-        setRecentRecords(allRecords.slice(0, 5));
 
         // Load custom modules
         const mods = await getSystemModules().catch(() => []);
@@ -194,12 +192,16 @@ export default function Dashboard() {
     if (isDivAllowed('eritrean-id')) searchInList(dbData.eritreanId, 'Eritrean ID File', 'eritrean_id');
     if (isDivAllowed('alien-passport')) searchInList(dbData.alienPassport, 'Alien Passport File', 'alien_passport');
 
-    setSearchResults(results.slice(0, 10)); // Cap at 10 results
+    setSearchResults(results.slice(0, 10));
   };
 
   const session = JSON.parse(localStorage.getItem('ics_auth_user')) || {};
   const isRestricted = session.role === 'OFFICER' || session.role === 'VIEWER';
   const allowed = session.allowedDivisions || [];
+
+  const countScanned = (records) => records.filter(r => r && r.attachments && r.attachments.length > 0).length;
+  const totalScanned = countScanned(dbData.visa) + countScanned(dbData.eoid) + countScanned(dbData.residence) + countScanned(dbData.residenceCancellation) + countScanned(dbData.etd) + countScanned(dbData.eritreanId) + countScanned(dbData.alienPassport);
+  const scanCoveragePct = stats.total > 0 ? Math.round((totalScanned / stats.total) * 100) : 0;
 
   const customChartItems = customModules.map(m => ({
     name: m.title,
@@ -209,105 +211,469 @@ export default function Dashboard() {
   })).filter(d => !isRestricted || allowed.includes(d.key));
 
   const chartData = [
-    { name: 'VISA Files', count: stats.visa, color: 'var(--accent-emerald)', key: 'visa' },
-    { name: 'Ethiopian Origin ID File', count: stats.eoid, color: 'var(--accent-gold)', key: 'eoid' },
-    { name: 'Residence ID File', count: stats.residence, color: 'var(--accent-blue)', key: 'residence-id' },
-    { name: 'Residence ID Cancellation', count: stats.residenceCancellation, color: '#dc2626', key: 'residence-id-cancellation' },
-    { name: 'Emergency Travel Document File', count: stats.etd, color: 'rgba(165, 180, 252, 1)', key: 'etd' },
-    { name: 'Eritrean ID File', count: stats.eritreanId, color: '#8b5cf6', key: 'eritrean-id' },
-    { name: 'Alien Passport File', count: stats.alienPassport, color: '#0ea5e9', key: 'alien-passport' }
+    { name: 'VISA Files', count: stats.visa, color: '#10b981', key: 'visa' },
+    { name: 'Origin ID (EOID)', count: stats.eoid, color: '#f59e0b', key: 'eoid' },
+    { name: 'Residence ID', count: stats.residence, color: '#3b82f6', key: 'residence-id' },
+    { name: 'Residence Canc.', count: stats.residenceCancellation, color: '#ef4444', key: 'residence-id-cancellation' },
+    { name: 'Travel Doc (ETD)', count: stats.etd, color: '#8b5cf6', key: 'etd' },
+    { name: 'Eritrean ID', count: stats.eritreanId, color: '#ec4899', key: 'eritrean-id' },
+    { name: 'Alien Passport', count: stats.alienPassport, color: '#06b6d4', key: 'alien-passport' }
   ].filter(d => !isRestricted || allowed.includes(d.key) || (d.key === 'eoid' && (allowed.includes('eoid-normal') || allowed.includes('eoid-underage')))).concat(customChartItems);
 
+  // Division Definitions
+  const divisionCards = [
+    { key: 'visa', name: 'VISA FILES', store: dbData.visa, color: '#10b981', bgGradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', path: '/visa', icon: FileText, desc: 'Entry visas, stickers & foreign passports' },
+    { key: 'eoid', name: 'ETHIOPIAN ORIGIN ID FILE', store: dbData.eoid, color: '#f59e0b', bgGradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', path: '/eoid', icon: Fingerprint, desc: 'Normal & Under-age yellow card archives' },
+    { key: 'residence-id', name: 'RESIDENCE ID FILE', store: dbData.residence, color: '#3b82f6', bgGradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', path: '/residence-id', icon: Award, desc: 'Temporary & permanent resident permits' },
+    { key: 'residence-id-cancellation', name: 'RESIDENCE ID CANCELLATION', store: dbData.residenceCancellation, color: '#ef4444', bgGradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', path: '/residence-id-cancellation', icon: FileWarning, desc: 'Cancelled & revoked residency dossiers' },
+    { key: 'etd', name: 'EMERGENCY TRAVEL DOC (ETD)', store: dbData.etd, color: '#8b5cf6', bgGradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', path: '/etd', icon: FileWarning, desc: 'Emergency repatriation & travel documents' },
+    { key: 'eritrean-id', name: 'ERITREAN ID FILE', store: dbData.eritreanId, color: '#ec4899', bgGradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)', path: '/eritrean-id', icon: IdCard, desc: 'Special community identification records' },
+    { key: 'alien-passport', name: 'ALIEN PASSPORT FILE', store: dbData.alienPassport, color: '#06b6d4', bgGradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', path: '/alien-passport', icon: Globe, desc: 'Stateless & foreign national passport registry' },
+    ...customModules.map(m => ({
+      key: m.key,
+      name: m.title.toUpperCase(),
+      store: customRecordsMap[m.key] || [],
+      color: m.color || '#10b981',
+      bgGradient: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+      path: `/modules/${m.key}`,
+      icon: Package,
+      desc: m.description || 'Custom administrative division'
+    })),
+    ...((isAdmin || userBranch?.role === 'SUPERVISOR' || JSON.parse(localStorage.getItem('ics_auth_user') || '{}').role === 'SUPERVISOR' || JSON.parse(localStorage.getItem('ics_auth_user') || '{}').role === 'ADMIN') ? [{
+      key: 'user-management',
+      name: 'USER MODULE & STAFF DIRECTORY',
+      store: new Array(stats.usersCount).fill(null),
+      color: '#059669',
+      bgGradient: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+      path: '/user-management',
+      icon: Users,
+      isUserModule: true,
+      desc: 'Officer access control, roles & permissions'
+    }] : [])
+  ].filter(d => {
+    const overrides = getModuleOverrides();
+    if (overrides[d.key]?.isActive === false) return false;
+    return d.isUserModule || !isRestricted || allowed.includes(d.key) || (d.key === 'eoid' && (allowed.includes('eoid-normal') || allowed.includes('eoid-underage')));
+  });
+
+  const filteredCards = divisionCards.filter(card => {
+    if (selectedFilter === 'ALL') return true;
+    return card.key === selectedFilter;
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      
-      {/* Title Header */}
-      <div>
-        <h2 style={{ margin: 0, fontWeight: 300, fontSize: '2rem', letterSpacing: '1px' }}>Immigration Overview</h2>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1600px', margin: '0 auto', width: '100%' }}>
+
+      {/* ══════════════════════════════════════════════════
+          1. EXECUTIVE HERO BANNER
+      ══════════════════════════════════════════════════ */}
+      <div style={{
+        background: 'linear-gradient(135deg, #091a36 0%, #0f2b5c 55%, #13397d 100%)',
+        borderRadius: '20px',
+        padding: '28px 36px',
+        color: '#ffffff',
+        boxShadow: '0 10px 30px rgba(9, 26, 54, 0.25)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        {/* Decorative subtle background circles */}
+        <div style={{ position: 'absolute', right: '-40px', top: '-40px', width: '220px', height: '220px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', right: '180px', bottom: '-60px', width: '180px', height: '180px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span style={{
+                background: 'rgba(255, 255, 255, 0.12)',
+                color: '#93c5fd',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                letterSpacing: '1px',
+                padding: '3px 10px',
+                borderRadius: '20px',
+                textTransform: 'uppercase'
+              }}>
+                Ethiopian Immigration &amp; Citizenship Service
+              </span>
+              <span style={{
+                background: 'rgba(16, 185, 129, 0.2)',
+                color: '#34d399',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '3px 10px',
+                borderRadius: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399' }} />
+                Online
+              </span>
+            </div>
+            <h1 style={{ margin: 0, fontSize: '1.9rem', fontWeight: 800, letterSpacing: '-0.3px', color: '#ffffff' }}>
+              National Physical &amp; Digital Dossier Archive
+            </h1>
+            <p style={{ margin: '6px 0 0 0', color: '#94a3b8', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span>Welcome back, <strong style={{ color: '#ffffff' }}>{session.fullName || session.username || 'Officer'}</strong></span>
+              <span style={{ color: 'rgba(255,255,255,0.3)' }}>•</span>
+              <span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.8rem', color: '#e2e8f0' }}>
+                {session.role || 'ADMIN'}
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.3)' }}>•</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38bdf8' }}>
+                <Building2 size={14} />
+                {userBranch?.name || selectedBranch || 'Head Office (Addis Ababa)'}
+              </span>
+            </p>
+          </div>
+
+          {/* Quick Date and Time display */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: '14px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.85rem' }}>
+              <Calendar size={18} style={{ color: '#38bdf8' }} />
+              <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                {currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.15)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.85rem' }}>
+              <Clock size={18} style={{ color: '#34d399' }} />
+              <span style={{ color: '#ffffff', fontWeight: 700, fontFamily: 'monospace', fontSize: '0.95rem' }}>
+                {currentTime.toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Global Search Bar */}
-      <div className="glass-panel" style={{ padding: '20px', position: 'relative' }}>
-        <div style={{ position: 'relative' }}>
-          <Search size={22} style={{ position: 'absolute', top: '13px', left: '16px', color: 'var(--text-secondary)' }} />
-          <input 
-            className="glass-input" 
-            placeholder="Global search across all divisions by Passport, Name, Request #, or Box #..." 
-            style={{ paddingLeft: '54px', fontSize: '1.05rem' }}
-            value={searchQuery}
-            onChange={e => handleSearch(e.target.value)}
-          />
+      {/* ══════════════════════════════════════════════════
+          2. 4 EXECUTIVE KPI METRIC CARDS
+      ══════════════════════════════════════════════════ */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        gap: '20px'
+      }}>
+        {/* KPI 1: Total Records */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '22px 24px',
+          border: '1px solid rgba(15, 43, 92, 0.08)',
+          boxShadow: '0 4px 20px rgba(15, 43, 92, 0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '14px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              TOTAL ARCHIVE DOSSIERS
+            </span>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <FileText size={20} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#0f2b5c', lineHeight: 1, letterSpacing: '-0.5px' }}>
+              {stats.total.toLocaleString()}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.8rem', color: '#64748b' }}>
+              <span style={{ background: '#dbeafe', color: '#1d4ed8', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem' }}>
+                Active Database
+              </span>
+              <span>Across all divisions</span>
+            </div>
+          </div>
+          <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #3b82f6, #1d4ed8)' }} />
+          </div>
         </div>
 
-        {/* Search Results dropdown */}
+        {/* KPI 2: Scanned & Digitized */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '22px 24px',
+          border: '1px solid rgba(15, 43, 92, 0.08)',
+          boxShadow: '0 4px 20px rgba(15, 43, 92, 0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '14px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              DIGITIZED &amp; SCANNED
+            </span>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: 'rgba(16, 185, 129, 0.1)', color: '#059669',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <CheckCircle size={20} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#059669', lineHeight: 1, letterSpacing: '-0.5px' }}>
+              {totalScanned.toLocaleString()}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.8rem', color: '#64748b' }}>
+              <span style={{ background: '#d1fae5', color: '#065f46', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem' }}>
+                {scanCoveragePct}% Coverage
+              </span>
+              <span>Scanned evidence online</span>
+            </div>
+          </div>
+          <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: `${scanCoveragePct}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #059669)', transition: 'width 0.6s ease' }} />
+          </div>
+        </div>
+
+        {/* KPI 3: Missing Scans */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '22px 24px',
+          border: '1px solid rgba(15, 43, 92, 0.08)',
+          boxShadow: '0 4px 20px rgba(15, 43, 92, 0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '14px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              PENDING OFFICER SCANS
+            </span>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: 'rgba(239, 68, 68, 0.1)', color: '#dc2626',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <AlertTriangle size={20} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: stats.missingAttachments > 0 ? '#dc2626' : '#64748b', lineHeight: 1, letterSpacing: '-0.5px' }}>
+              {stats.missingAttachments.toLocaleString()}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.8rem', color: '#64748b' }}>
+              <span style={{ background: stats.missingAttachments > 0 ? '#fee2e2' : '#f1f5f9', color: stats.missingAttachments > 0 ? '#991b1b' : '#64748b', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem' }}>
+                {stats.missingAttachments > 0 ? 'Action Needed' : 'All Clear'}
+              </span>
+              <span>Dossiers without scans</span>
+            </div>
+          </div>
+          <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: stats.total > 0 ? `${Math.round((stats.missingAttachments / stats.total) * 100)}%` : '0%', height: '100%', background: '#dc2626' }} />
+          </div>
+        </div>
+
+        {/* KPI 4: Staff & Personnel */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '22px 24px',
+          border: '1px solid rgba(15, 43, 92, 0.08)',
+          boxShadow: '0 4px 20px rgba(15, 43, 92, 0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '14px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              AUTHORIZED PERSONNEL
+            </span>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: 'rgba(139, 92, 246, 0.1)', color: '#7c3aed',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Users size={20} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#7c3aed', lineHeight: 1, letterSpacing: '-0.5px' }}>
+              {stats.usersCount > 0 ? stats.usersCount : '—'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '0.8rem', color: '#64748b' }}>
+              <span style={{ background: '#f3e8ff', color: '#6b21a8', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem' }}>
+                {stats.activeUsers} Active
+              </span>
+              <span>Role-based access active</span>
+            </div>
+          </div>
+          <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #7c3aed)' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════
+          3. GLOBAL SEARCH & QUICK DIVISION FILTERS
+      ══════════════════════════════════════════════════ */}
+      <div style={{
+        background: '#ffffff',
+        borderRadius: '16px',
+        padding: '20px 24px',
+        border: '1px solid rgba(15, 43, 92, 0.08)',
+        boxShadow: '0 4px 20px rgba(15, 43, 92, 0.03)',
+        position: 'relative'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+            <Search size={20} style={{ position: 'absolute', top: '13px', left: '16px', color: '#64748b' }} />
+            <input
+              type="text"
+              placeholder="Search by Applicant Full Name, Passport #, Personal ID, Shelf #, or Box #..."
+              value={searchQuery}
+              onChange={e => handleSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px 12px 46px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                fontSize: '0.94rem',
+                outline: 'none',
+                background: '#f8fafc',
+                color: '#0f172a',
+                transition: 'border-color 0.2s, background 0.2s',
+                boxSizing: 'border-box'
+              }}
+              onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.background = '#ffffff'; }}
+              onBlur={e => { e.target.style.borderColor = '#cbd5e1'; e.target.style.background = '#f8fafc'; }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => handleSearch('')}
+                style={{
+                  position: 'absolute', right: '12px', top: '12px', background: '#e2e8f0',
+                  border: 'none', borderRadius: '50%', width: '22px', height: '22px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#475569', fontSize: '0.75rem', fontWeight: 'bold'
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Quick Division Filter Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+            {[
+              { key: 'ALL', label: 'All Divisions' },
+              { key: 'visa', label: 'Visa' },
+              { key: 'eoid', label: 'EOID' },
+              { key: 'residence-id', label: 'Residence ID' },
+              { key: 'etd', label: 'ETD' }
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setSelectedFilter(f.key)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: selectedFilter === f.key ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                  background: selectedFilter === f.key ? '#eff6ff' : '#ffffff',
+                  color: selectedFilter === f.key ? '#1d4ed8' : '#64748b',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Global Search Results Dropdown */}
         {searchQuery.trim() && (
           <div style={{
             position: 'absolute',
-            top: '80px',
-            left: '20px',
-            right: '20px',
-            background: 'rgba(13, 22, 43, 0.95)',
-            border: '1px solid var(--border-glass)',
-            borderRadius: '12px',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
-            zIndex: 99,
-            maxHeight: '400px',
+            top: '78px',
+            left: '24px',
+            right: '24px',
+            background: '#ffffff',
+            borderRadius: '14px',
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 15px 35px rgba(15, 23, 42, 0.15)',
+            zIndex: 100,
+            maxHeight: '380px',
             overflowY: 'auto'
           }}>
             {searchResults.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                No records match your query.
+              <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.9rem' }}>
+                No records found matching "{searchQuery}".
               </div>
             ) : (
-              searchResults.map((rec) => (
-                <div 
-                  key={`${rec.storeName}_${rec.id}`}
+              searchResults.map((rec, i) => (
+                <div
+                  key={i}
                   onClick={() => setSelectedRecord(rec)}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '14px 20px',
-                    borderBottom: '1px solid var(--border-glass)',
+                    padding: '12px 18px',
+                    borderBottom: '1px solid #f1f5f9',
                     cursor: 'pointer',
-                    transition: 'background 0.2s',
+                    transition: 'background 0.15s ease'
                   }}
-                  className="search-row-hover"
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
                 >
                   <div>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{rec.fullName}</span>
-                    <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      <span>Passport: <strong style={{ fontFamily: 'monospace' }}>{rec.passportNumber}</strong></span>
+                    <div style={{ fontWeight: 700, color: '#0f2b5c', fontSize: '0.92rem' }}>
+                      {rec.fullName || 'Unnamed Record'}
+                    </div>
+                    <div style={{ display: 'flex', gap: '14px', marginTop: '3px', fontSize: '0.78rem', color: '#64748b' }}>
+                      <span>Passport: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{rec.passportNumber || '—'}</strong></span>
+                      <span>Box: <strong style={{ color: '#0f172a' }}>{rec.boxNumber || '—'}</strong></span>
                       {rec.shelfNumber && <span>Shelf: <strong>{rec.shelfNumber}</strong></span>}
-                      <span>Box: <strong>{rec.boxNumber}</strong></span>
                     </div>
                   </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      fontWeight: 'bold', 
-                      padding: '4px 8px', 
-                      borderRadius: '4px',
-                      background: rec.category === 'VISA Files' ? 'rgba(16, 185, 129, 0.15)' : 
-                                  rec.category === 'Ethiopian Origin ID — Normal File' ? 'rgba(251, 191, 36, 0.15)' : 
-                                  rec.category === 'Ethiopian Origin ID — Under-Age File' ? 'rgba(249, 115, 22, 0.15)' :
-                                  rec.category === 'Residence ID File' ? 'rgba(59, 130, 246, 0.15)' : 
-                                  rec.category === 'Eritrean ID File' ? 'rgba(139, 92, 246, 0.15)' :
-                                  rec.category === 'Alien Passport File' ? 'rgba(14, 165, 233, 0.15)' :
-                                  'rgba(165, 180, 252, 0.15)',
-                      color: rec.category === 'VISA Files' ? 'var(--accent-emerald)' : 
-                             rec.category === 'Ethiopian Origin ID — Normal File' ? 'var(--accent-gold)' : 
-                             rec.category === 'Ethiopian Origin ID — Under-Age File' ? '#f97316' :
-                             rec.category === 'Residence ID File' ? 'var(--accent-blue)' : 
-                             rec.category === 'Eritrean ID File' ? '#8b5cf6' :
-                             rec.category === 'Alien Passport File' ? '#0ea5e9' :
-                             'rgba(165, 180, 252, 1)',
-                      border: '1px solid currentColor'
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      background: '#f1f5f9',
+                      color: '#0f2b5c',
+                      border: '1px solid #e2e8f0'
                     }}>
                       {rec.category}
                     </span>
-                    <Eye size={18} style={{ color: 'var(--text-secondary)' }} />
+                    <Eye size={16} style={{ color: '#64748b' }} />
                   </div>
                 </div>
               ))
@@ -317,244 +683,214 @@ export default function Dashboard() {
       </div>
 
       {/* ══════════════════════════════════════════════════
-          TOP SCAN AUDIT BANNER (Matches Official Portal Banner)
+          4. IMMIGRATION ARCHIVE DIVISIONS GRID
       ══════════════════════════════════════════════════ */}
-      {(() => {
-        const countScanned = (records) => records.filter(r => r.attachments && r.attachments.length > 0).length;
-        const totalScanned = countScanned(dbData.visa) + countScanned(dbData.eoid) + countScanned(dbData.residence) + countScanned(dbData.residenceCancellation) + countScanned(dbData.etd) + countScanned(dbData.eritreanId) + countScanned(dbData.alienPassport);
-        const scanCoveragePct = stats.total > 0 ? Math.round((totalScanned / stats.total) * 100) : 0;
-
-        return (
-          <div style={{
-            background: 'linear-gradient(135deg, #0b1e3d 0%, #0f2b5c 100%)',
-            borderRadius: '20px',
-            padding: '24px 32px',
-            color: '#ffffff',
-            boxShadow: '0 12px 30px rgba(11, 30, 61, 0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '24px'
-          }}>
-            {/* Stat 1: Total Records */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '140px' }}>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                TOTAL RECORDS
-              </span>
-              <span style={{ fontSize: '2.4rem', fontWeight: 900, color: '#ffffff', lineHeight: 1 }}>
-                {stats.total}
-              </span>
-            </div>
-
-            <div style={{ width: '1px', height: '44px', background: 'rgba(255,255,255,0.12)' }} />
-
-            {/* Stat 2: Scanned */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '120px' }}>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                SCANNED
-              </span>
-              <span style={{ fontSize: '2.4rem', fontWeight: 900, color: '#34d399', lineHeight: 1 }}>
-                {totalScanned}
-              </span>
-            </div>
-
-            <div style={{ width: '1px', height: '44px', background: 'rgba(255,255,255,0.12)' }} />
-
-            {/* Stat 3: Missing Scans */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '140px' }}>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                MISSING SCANS
-              </span>
-              <span style={{ fontSize: '2.4rem', fontWeight: 900, color: '#f87171', lineHeight: 1 }}>
-                {stats.missingAttachments}
-              </span>
-            </div>
-
-            <div style={{ width: '1px', height: '44px', background: 'rgba(255,255,255,0.12)' }} />
-
-            {/* Stat 4: Scan Coverage Progress */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '220px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  SCAN COVERAGE
-                </span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#34d399' }}>
-                  {scanCoveragePct}%
-                </span>
-              </div>
-              <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
-                <div style={{ width: `${scanCoveragePct}%`, height: '100%', background: 'linear-gradient(90deg, #34d399 0%, #10b981 100%)', borderRadius: '10px', transition: 'width 0.6s ease' }} />
-              </div>
-            </div>
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f2b5c' }}>
+              Archive Divisions &amp; Registers
+            </h3>
+            <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: '#64748b' }}>
+              Select any division to view file tables, perform automated OCR ingest, and export records.
+            </p>
           </div>
-        );
-      })()}
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '4px 10px', borderRadius: '8px' }}>
+            {filteredCards.length} Active Modules
+          </span>
+        </div>
 
-      {/* ══════════════════════════════════════════════════
-          DIVISION CARDS GRID (Matching Official Portal Layout)
-      ══════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-        {[
-          { key: 'visa', name: 'VISA FILES', store: dbData.visa, color: '#059669', path: '/visa', icon: FileText },
-          { key: 'eoid', name: 'ETHIOPIAN ORIGIN ID FILE', store: dbData.eoid, color: '#b45309', path: '/eoid', icon: Fingerprint },
-          { key: 'residence-id', name: 'RESIDENCE ID FILE', store: dbData.residence, color: '#2563eb', path: '/residence-id', icon: Award },
-          { key: 'residence-id-cancellation', name: 'RESIDENCE ID CANCELLATION FILE', store: dbData.residenceCancellation, color: '#dc2626', path: '/residence-id-cancellation', icon: FileWarning },
-          { key: 'etd', name: 'EMERGENCY TRAVEL DOCUMENT FILE', store: dbData.etd, color: '#7c3aed', path: '/etd', icon: FileWarning },
-          { key: 'eritrean-id', name: 'ERITREAN ID FILE', store: dbData.eritreanId, color: '#6d28d9', path: '/eritrean-id', icon: IdCard },
-          { key: 'alien-passport', name: 'ALIEN PASSPORT FILE', store: dbData.alienPassport, color: '#0284c7', path: '/alien-passport', icon: Globe },
-          ...customModules.map(m => ({
-            key: m.key,
-            name: m.title.toUpperCase(),
-            store: customRecordsMap[m.key] || [],
-            color: m.color || '#10b981',
-            path: `/modules/${m.key}`,
-            icon: Package
-          })),
-          ...((isAdmin || userBranch?.role === 'SUPERVISOR' || JSON.parse(localStorage.getItem('ics_auth_user') || '{}').role === 'SUPERVISOR' || JSON.parse(localStorage.getItem('ics_auth_user') || '{}').role === 'ADMIN') ? [{
-            key: 'user-management',
-            name: 'USER MODULE & STAFF DIRECTORY',
-            store: new Array(stats.usersCount).fill(null),
-            color: '#059669',
-            path: '/user-management',
-            icon: Users,
-            isUserModule: true
-          }] : [])
-        ].filter(d => {
-          const overrides = getModuleOverrides();
-          if (overrides[d.key]?.isActive === false) return false;
-          return d.isUserModule || !isRestricted || allowed.includes(d.key) || (d.key === 'eoid' && (allowed.includes('eoid-normal') || allowed.includes('eoid-underage')));
-        }).map((div, i) => {
-          const total = div.store.length;
-          const scanned = div.isUserModule ? stats.activeUsers : div.store.filter(r => r && r.attachments && r.attachments.length > 0).length;
-          const missing = div.isUserModule ? (total - stats.activeUsers) : (total - scanned);
-          const coverage = total > 0 ? Math.round((scanned / total) * 100) : 0;
-          const IconComponent = div.icon || Package;
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))',
+          gap: '20px'
+        }}>
+          {filteredCards.map((div, i) => {
+            const total = div.store.length;
+            const scanned = div.isUserModule ? stats.activeUsers : div.store.filter(r => r && r.attachments && r.attachments.length > 0).length;
+            const missing = div.isUserModule ? (total - stats.activeUsers) : (total - scanned);
+            const coverage = total > 0 ? Math.round((scanned / total) * 100) : 0;
+            const IconComponent = div.icon || Package;
 
-          return (
-            <div
-              key={i}
-              onClick={() => navigate(div.path)}
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                padding: '24px',
-                border: '1px solid rgba(15, 43, 92, 0.08)',
-                borderTop: `4px solid ${div.color}`,
-                boxShadow: '0 4px 20px rgba(15, 43, 92, 0.04)',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                gap: '16px',
-                transition: 'all 0.25s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-3px)';
-                e.currentTarget.style.boxShadow = '0 8px 30px rgba(15, 43, 92, 0.08)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(15, 43, 92, 0.04)';
-              }}
-            >
-              {/* Card Header: Icon + Name + Badge Count */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: '34px', height: '34px', borderRadius: '8px',
-                    background: `${div.color}15`, color: div.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: `1px solid ${div.color}30`, flexShrink: 0
-                  }}>
-                    <IconComponent size={18} />
+            return (
+              <div
+                key={i}
+                onClick={() => navigate(div.path)}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  border: '1px solid rgba(15, 43, 92, 0.08)',
+                  borderTop: `4px solid ${div.color}`,
+                  boxShadow: '0 4px 20px rgba(15, 43, 92, 0.04)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  transition: 'all 0.25s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 8px 30px rgba(15, 43, 92, 0.09)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(15, 43, 92, 0.04)';
+                }}
+              >
+                {/* Header: Icon + Name + Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '42px', height: '42px', borderRadius: '10px',
+                      background: `${div.color}15`, color: div.color,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: `1px solid ${div.color}30`, flexShrink: 0
+                    }}>
+                      <IconComponent size={22} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#0f2b5c', textTransform: 'uppercase', letterSpacing: '0.3px', lineHeight: 1.3 }}>
+                        {div.name}
+                      </h4>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                        {div.desc}
+                      </p>
+                    </div>
                   </div>
-                  <h4 style={{ margin: 0, fontSize: '0.84rem', fontWeight: 800, color: '#0f2b5c', letterSpacing: '0.4px', textTransform: 'uppercase', lineHeight: 1.3 }}>
-                    {div.name}
-                  </h4>
-                </div>
-                <span style={{
-                  background: `${div.color}12`,
-                  color: div.color,
-                  border: `1px solid ${div.color}30`,
-                  borderRadius: '12px',
-                  padding: '2px 10px',
-                  fontSize: '0.85rem',
-                  fontWeight: 800,
-                  flexShrink: 0
-                }}>
-                  {total}
-                </span>
-              </div>
-
-              {/* Card Main Big Count */}
-              <div>
-                <span style={{ fontSize: '2.6rem', fontWeight: 900, color: '#0f2b5c', lineHeight: 1 }}>
-                  {total}
-                </span>
-              </div>
-
-              {/* Scanned vs Missing Indicators */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.86rem', fontWeight: 700 }}>
-                {div.isUserModule ? (
-                  <>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#059669' }}>
-                      ✓ {stats.activeUsers} active
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#64748b' }}>
-                      ⚙️ Access Control
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#059669' }}>
-                      ✓ {scanned} scanned
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: missing > 0 ? '#dc2626' : '#64748b' }}>
-                      ⚠ {missing} missing
-                    </span>
-                  </>
-                )}
-              </div>
-
-              {/* Progress Bar & Subtitle */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '10px', overflow: 'hidden' }}>
-                  <div style={{ width: `${div.isUserModule ? 100 : coverage}%`, height: '100%', background: div.color, borderRadius: '10px', transition: 'width 0.6s ease' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748b' }}>
-                    {div.isUserModule ? 'Staff Accounts & Privileges' : `${coverage}% scan coverage`}
-                  </span>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: div.color }}>
-                    Open Division →
+                  <span style={{
+                    background: `${div.color}14`,
+                    color: div.color,
+                    border: `1px solid ${div.color}35`,
+                    borderRadius: '12px',
+                    padding: '3px 10px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    flexShrink: 0
+                  }}>
+                    {total}
                   </span>
                 </div>
+
+                {/* Main Big Count */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '2.4rem', fontWeight: 900, color: '#0f2b5c', lineHeight: 1 }}>
+                    {total.toLocaleString()}
+                  </span>
+                  <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>
+                    {div.isUserModule ? 'registered accounts' : 'registered dossiers'}
+                  </span>
+                </div>
+
+                {/* Scanned vs Missing badges */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {div.isUserModule ? (
+                    <>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', color: '#059669', padding: '3px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700 }}>
+                        <CheckCircle size={13} /> {stats.activeUsers} active
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700 }}>
+                        <Shield size={13} /> Access Control
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', color: '#059669', padding: '3px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700 }}>
+                        <CheckCircle size={13} /> {scanned} scanned
+                      </span>
+                      {missing > 0 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef2f2', color: '#dc2626', padding: '3px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700 }}>
+                          <AlertTriangle size={13} /> {missing} missing
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Scan Coverage Progress Bar */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#64748b' }}>
+                      {div.isUserModule ? 'Staff Accounts & Privileges' : 'Digital Scan Coverage'}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: div.color }}>
+                      {div.isUserModule ? '100%' : `${coverage}%`}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '7px', background: '#f1f5f9', borderRadius: '10px', overflow: 'hidden' }}>
+                    <div style={{ width: `${div.isUserModule ? 100 : coverage}%`, height: '100%', background: div.color, borderRadius: '10px', transition: 'width 0.6s ease' }} />
+                  </div>
+                </div>
+
+                {/* Card Action Link */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: div.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    Open Division <ArrowUpRight size={14} />
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Chart & Recent Activity Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '32px' }}>
-        
-        {/* Chart View */}
-        <div className="glass-panel" style={{ padding: '24px', height: '420px', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ margin: '0 0 24px 0', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.9rem' }}>
-            Division Distribution
-          </h3>
-          <div style={{ flex: 1 }}>
+      {/* ══════════════════════════════════════════════════
+          5. CHARTS & LIVE AUDIT FEED
+      ══════════════════════════════════════════════════ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 0.9fr)', gap: '24px' }}>
+
+        {/* Division Distribution BarChart (Light Theme) */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '24px',
+          border: '1px solid rgba(15, 43, 92, 0.08)',
+          boxShadow: '0 4px 20px rgba(15, 43, 92, 0.03)',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '420px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: '#0f2b5c', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Division Distribution
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                Total recorded dossiers per immigration category
+              </p>
+            </div>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '3px 8px', borderRadius: '6px' }}>
+              Live Count
+            </span>
+          </div>
+
+          <div style={{ flex: 1, width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} />
-                <YAxis stroke="var(--text-secondary)" fontSize={12} allowDecimals={false} />
-                <Tooltip 
-                  contentStyle={{ background: 'var(--bg-deep)', borderColor: 'var(--border-glass)', borderRadius: '8px' }}
-                  labelStyle={{ color: 'var(--text-secondary)' }}
+              <BarChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 25 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  stroke="#94a3b8"
+                  fontSize={11}
+                  interval={0}
+                  angle={-15}
+                  textAnchor="end"
+                  tick={{ fill: '#64748b' }}
                 />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                <YAxis stroke="#94a3b8" fontSize={11} allowDecimals={false} tick={{ fill: '#64748b' }} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(15, 43, 92, 0.03)' }}
+                  contentStyle={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '10px',
+                    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.1)',
+                    fontSize: '0.85rem'
+                  }}
+                  labelStyle={{ fontWeight: 800, color: '#0f2b5c', marginBottom: '4px' }}
+                />
+                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -564,109 +900,154 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Live Audit Activity Feed */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '420px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.85rem' }}>
-              Live Activity Feed
-            </h3>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-emerald)', display: 'inline-block', animation: 'pulse 2s infinite' }}></span>
-              LIVE
-            </span>
+        {/* Live Activity Feed (Light Theme) */}
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '24px',
+          border: '1px solid rgba(15, 43, 92, 0.08)',
+          boxShadow: '0 4px 20px rgba(15, 43, 92, 0.03)',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '420px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: '#0f2b5c', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Live Activity Feed
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                Real-time registry additions and updates
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                fontSize: '0.72rem', color: '#059669', background: '#ecfdf5',
+                padding: '3px 8px', borderRadius: '20px', fontWeight: 800
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#059669' }} />
+                LIVE
+              </span>
+              <button
+                onClick={() => navigate('/audit-log')}
+                style={{
+                  background: 'none', border: 'none', color: '#2563eb',
+                  fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                Full Log →
+              </button>
+            </div>
           </div>
+
           <AuditFeed />
         </div>
 
       </div>
 
-      {/* Detailed View Modal (Search / Timeline Overlay) */}
+      {/* ══════════════════════════════════════════════════
+          6. DETAILED RECORD VIEW MODAL (FROM SEARCH)
+      ══════════════════════════════════════════════════ */}
       {selectedRecord && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(5, 10, 21, 0.85)',
-          backdropFilter: 'blur(12px)',
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1001,
+          zIndex: 2000,
           padding: '20px'
         }}>
-          <div className="glass-panel animate-fade-in" style={{
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '20px',
             width: '100%',
             maxWidth: '650px',
             padding: '28px',
-            border: '1px solid rgba(255,255,255,0.12)'
+            boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+            border: '1px solid rgba(15, 43, 92, 0.1)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontWeight: 300 }}>
-                Record Details — <span style={{ fontWeight: 600, color: 'var(--accent-emerald)' }}>{selectedRecord.category}</span>
-              </h3>
-              <button 
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {selectedRecord.category}
+                </span>
+                <h3 style={{ margin: '2px 0 0 0', fontWeight: 800, fontSize: '1.25rem', color: '#0f2b5c' }}>
+                  {selectedRecord.fullName}
+                </h3>
+              </div>
+              <button
                 onClick={() => setSelectedRecord(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                style={{
+                  background: '#f1f5f9', border: 'none', borderRadius: '50%',
+                  width: '32px', height: '32px', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', color: '#64748b'
+                }}
               >
-                <X size={20} />
+                ✕
               </button>
             </div>
 
             {/* Biographical Card */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.9rem', marginBottom: '24px' }}>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Full Name:</strong> {selectedRecord.fullName}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Shelf Number:</strong> {selectedRecord.shelfNumber || '—'}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>BOX Number:</strong> {selectedRecord.boxNumber}</div>
-              <div><strong style={{ color: '#1054a8' }}>PER ID:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{selectedRecord.personalId || '—'}</span></div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Passport Number:</strong> <span style={{ fontFamily: 'monospace' }}>{selectedRecord.passportNumber}</span></div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Sex:</strong> {selectedRecord.sex}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Citizenship:</strong> {selectedRecord.citizenship || 'N/A'}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Request Number:</strong> {selectedRecord.requestNumber || 'N/A'}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Service Provided:</strong> {selectedRecord.serviceProvided || 'N/A'}</div>
-              <div><strong style={{ color: 'var(--text-secondary)' }}>Date Processed:</strong> {selectedRecord.date}</div>
-
-              {/* Specifics */}
-              {selectedRecord.eoidNumber && <div><strong style={{ color: 'var(--accent-gold)' }}>EOID Number:</strong> {selectedRecord.eoidNumber}</div>}
-              {selectedRecord.residenceIdNumber && <div><strong style={{ color: 'var(--accent-blue)' }}>Residence ID:</strong> {selectedRecord.residenceIdNumber}</div>}
-              {selectedRecord.companyName && <div><strong style={{ color: 'var(--accent-blue)' }}>Company:</strong> {selectedRecord.companyName}</div>}
-              {selectedRecord.etdNumber && <div><strong style={{ color: 'rgba(165, 180, 252, 1)' }}>ETD Number:</strong> {selectedRecord.etdNumber}</div>}
-              {selectedRecord.eritreanIdNumber && <div><strong style={{ color: '#8b5cf6' }}>Eritrean ID:</strong> {selectedRecord.eritreanIdNumber}</div>}
-              {selectedRecord.alienPassportNumber && <div><strong style={{ color: '#0ea5e9' }}>Alien Passport:</strong> {selectedRecord.alienPassportNumber}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.88rem', marginBottom: '20px' }}>
+              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Passport Number</span>
+                <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{selectedRecord.passportNumber || '—'}</strong>
+              </div>
+              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Box &amp; Shelf Location</span>
+                <strong style={{ color: '#0f172a' }}>{selectedRecord.boxNumber || '—'} {selectedRecord.shelfNumber ? `(${selectedRecord.shelfNumber})` : ''}</strong>
+              </div>
+              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Personal ID</span>
+                <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{selectedRecord.personalId || '—'}</strong>
+              </div>
+              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Citizenship</span>
+                <strong style={{ color: '#0f172a' }}>{selectedRecord.citizenship || '—'}</strong>
+              </div>
             </div>
 
-            {/* Scanned Documents */}
-            <div>
-              <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+            {/* Scanned Attachments */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '0.82rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Scanned Evidence ({selectedRecord.attachments?.length || 0})
               </h4>
               {(!selectedRecord.attachments || selectedRecord.attachments.length === 0) ? (
-                <div style={{ border: '1px dashed var(--accent-danger)', color: 'var(--accent-danger)', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  border: '1px dashed #fca5a5', background: '#fef2f2',
+                  color: '#dc2626', padding: '12px', borderRadius: '8px',
+                  fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px'
+                }}>
                   <AlertTriangle size={18} />
-                  <span>No documents attached. Officer must scan passport and visa!</span>
+                  <span>No documents attached. Officer must scan passport and required records!</span>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px' }}>
                   {selectedRecord.attachments.map(att => (
-                    <div key={att.id} style={{ 
-                      background: 'rgba(0,0,0,0.3)', 
-                      border: '1px solid var(--border-glass)', 
-                      borderRadius: '6px', 
-                      padding: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
+                    <div key={att.id || att.name} style={{
+                      background: '#f8fafc', border: '1px solid #e2e8f0',
+                      borderRadius: '8px', padding: '8px', display: 'flex',
+                      flexDirection: 'column', gap: '6px'
                     }}>
-                      <div style={{ height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '4px', background: '#000' }}>
-                        {att.type.startsWith('image/') ? (
+                      <div style={{ height: '65px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '6px', background: '#ffffff', border: '1px solid #e2e8f0' }}>
+                        {att.type && att.type.startsWith('image/') ? (
                           <img src={att.dataUrl} alt={att.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                          <FileText size={32} style={{ color: 'var(--accent-blue)' }} />
+                          <FileText size={28} style={{ color: '#2563eb' }} />
                         )}
                       </div>
-                      <span style={{ fontSize: '0.7rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
-                      <a 
-                        href={att.dataUrl} 
+                      <span style={{ fontSize: '0.72rem', color: '#0f172a', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {att.name}
+                      </span>
+                      <a
+                        href={att.dataUrl}
                         download={att.name}
-                        style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--accent-emerald)', fontWeight: 'bold' }}
+                        style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#059669', fontWeight: 700 }}
                       >
                         <FileDown size={12} /> Download
                       </a>
@@ -676,16 +1057,21 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button 
-                className="glass-button" 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={() => setSelectedRecord(null)}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '0.86rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Close
+              </button>
+              <button
                 onClick={() => {
                   setSelectedRecord(null);
-                  // Redirect to division page
                   navigate(selectedRecord.storeName === 'residence_id' ? '/residence-id' : `/${selectedRecord.storeName}`);
                 }}
+                style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: '#0f2b5c', color: '#ffffff', fontSize: '0.86rem', fontWeight: 700, cursor: 'pointer' }}
               >
-                Go to Division Explorer
+                Go to Division Explorer →
               </button>
             </div>
           </div>
@@ -705,9 +1091,11 @@ function AuditFeed() {
     UPDATE: { label: 'Modified', color: '#1d4ed8', bg: '#dbeafe', Icon: Edit2 },
     DELETE: { label: 'Deleted', color: '#dc2626', bg: '#fee2e2', Icon: Trash2 },
     IMPORT: { label: 'Imported', color: '#a855f7', bg: '#f3e8ff', Icon: Download },
+    BULK_INGESTION: { label: 'Bulk Ingest', color: '#059669', bg: '#d1fae5', Icon: Sparkles }
   };
 
   const timeAgo = (iso) => {
+    if (!iso) return 'recently';
     const diff = Date.now() - new Date(iso).getTime();
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'just now';
@@ -729,65 +1117,56 @@ function AuditFeed() {
       }
     };
     load();
-    const id = setInterval(load, 30000);
+    const id = setInterval(load, 25000);
     return () => clearInterval(id);
   }, []);
 
-  if (loading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading activity...</div>;
+  if (loading) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem' }}>Loading activity...</div>;
 
   if (feed.length === 0) return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', gap: '8px' }}>
-      <Clock size={28} style={{ opacity: 0.25 }} />
-      <p style={{ margin: 0, fontSize: '0.85rem' }}>No activity yet</p>
-      <p style={{ margin: 0, fontSize: '0.76rem', opacity: 0.6 }}>Actions will appear here in real time.</p>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', gap: '8px' }}>
+      <Clock size={28} style={{ opacity: 0.3 }} />
+      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>No activity logged yet</p>
+      <p style={{ margin: 0, fontSize: '0.76rem', color: '#94a3b8' }}>Dossier operations will appear here in real time.</p>
     </div>
   );
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
       {feed.map((entry, idx) => {
         const meta = ACTION_META[entry.action] || ACTION_META.CREATE;
         const Icon = meta.Icon;
-        const name = entry.recordData?.fullName || entry.previousData?.fullName || '—';
+        const name = entry.recordData?.fullName || entry.previousData?.fullName || entry.details || '—';
         return (
           <div key={idx} style={{
             display: 'flex', alignItems: 'center', gap: '12px',
-            padding: '10px 12px', borderRadius: '10px',
+            padding: '8px 10px', borderRadius: '10px',
             transition: 'background 0.15s'
           }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(15,43,92,0.025)'}
+          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
             <div style={{
-              width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
+              width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
               background: meta.bg,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: meta.color
             }}>
-              <Icon size={15} />
+              <Icon size={14} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {name}
               </div>
-              <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1px' }}>
                 <span style={{ padding: '1px 6px', borderRadius: '4px', background: meta.bg, color: meta.color, fontWeight: 700, fontSize: '0.67rem', marginRight: '6px' }}>{meta.label}</span>
-                {entry.storeName} · {entry.userName || 'Unknown'}
+                {entry.storeName} · {entry.userName || 'Officer'}
               </div>
             </div>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', flexShrink: 0 }}>{timeAgo(entry.timestamp)}</span>
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8', flexShrink: 0 }}>{timeAgo(entry.timestamp)}</span>
           </div>
         );
       })}
     </div>
-  );
-}
-
-// Simple close icon component inside same file for speed
-function X({ size, color }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x">
-      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-    </svg>
   );
 }
