@@ -1,0 +1,23 @@
+{
+  "name": "fms-server",
+  "version": "1.0.0",
+  "description": "File Management System - Local PostgreSQL API Server",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+  "start": "node index.js",
+  "dev": "node index.js",
+  "frontend": "npm run dev --prefix ../frontend",
+  "start:all": "concurrently \"npm run start\" \"npm run frontend\""
+
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

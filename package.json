@@ -4,25 +4,32 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "start": "concurrently -k --names backend,frontend \"npm run dev:server\" \"npm run dev\"",
+    "start:full": "concurrently -k --names backend,frontend \"npm run dev:server\" \"npm run dev\"",
+    "dev": "vite --config frontend/vite.config.js --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:server": "node backend/index.js",
+    "build": "vite --config frontend/vite.config.js build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite --config frontend/vite.config.js preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
     "lucide-react": "^1.7.0",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.2",
     "recharts": "^3.8.1",
+    "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
