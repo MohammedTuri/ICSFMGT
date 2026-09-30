@@ -26,15 +26,27 @@ function composeFullName(item) {
 }
 
 function deriveApplicantNameFromFilename(filename, index = 1) {
-  if (!filename) return { firstName: 'APPLICANT', middleName: '', lastName: `RECORD ${index}` };
+  if (!filename) return { firstName: '', middleName: '', lastName: '' };
   let clean = filename.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ').trim();
-  clean = clean.replace(/^(new|scan|scanned|photo|image|img|document|doc|thumb)\s+/i, '');
+  
+  // Check if filename is a machine/camera/generic file title (e.g. "images (1)", "scan01", "IMG_2024", "passport")
+  const genericPattern = /^(images?|imgs?|photos?|pictures?|scans?|scanned|docs?|documents?|files?|attachments?|pages?|untitled|screenshots?|downloads?|whatsapp|camera|dsc|pxl|passports?|visas?|eoids?|etds?|residence)(\s*[\(_\-\[]\s*\d+\s*[\)_\-\]]|\s*\d+)*$/i;
+  if (genericPattern.test(clean)) {
+    return { firstName: '', middleName: '', lastName: '' };
+  }
+
+  // Remove leading generic descriptor words if followed by real names (e.g. "Passport John Doe" -> "John Doe")
+  clean = clean.replace(/^(new|scan|scanned|photo|image|images|img|document|doc|thumb|passport|visa|eoid)\s+/i, '').trim();
+  
+  // Remove trailing numbers or parentheses like (1), (2), _01
+  clean = clean.replace(/\s*[\(_\-\[]\s*\d+\s*[\)_\-\]]\s*$/, '').trim();
+
   const tokens = clean.split(/\s+/).filter(Boolean);
-  if (!tokens.length || (tokens.length === 1 && /^\d+$/.test(tokens[0]))) {
-    return { firstName: 'APPLICANT', middleName: '', lastName: `RECORD ${String(index).padStart(2, '0')}` };
+  if (!tokens.length || (tokens.length === 1 && /^\d+$/.test(tokens[0])) || genericPattern.test(clean)) {
+    return { firstName: '', middleName: '', lastName: '' };
   }
   if (tokens.length === 1) {
-    return { firstName: tokens[0].toUpperCase(), middleName: '', lastName: `DOC ${index}` };
+    return { firstName: tokens[0].toUpperCase(), middleName: '', lastName: '' };
   }
   return {
     firstName: tokens[0].toUpperCase(),
