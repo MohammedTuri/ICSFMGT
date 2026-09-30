@@ -493,7 +493,8 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
     setQueue(itemsToProcess);
 
     const normalizePassport = value => String(value ?? '').trim().toUpperCase();
-    const normalizedPassports = queue
+    // Use itemsToProcess (freshly computed, not stale queue state) for duplicate check
+    const normalizedPassports = itemsToProcess
       .map(item => normalizePassport(item.passportNumber))
       .filter(Boolean);
     const duplicateInQueue = normalizedPassports.find((passport, index) => normalizedPassports.indexOf(passport) !== index);
@@ -519,11 +520,12 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
     }
 
     setSaving(true);
-    try {
-      const user = JSON.parse(localStorage.getItem('ics_auth_user') || '{}');
-      let successCount = 0;
-      for (let i = 0; i < itemsToProcess.length; i++) {
-        const item = itemsToProcess[i];
+    const user = JSON.parse(localStorage.getItem('ics_auth_user') || '{}');
+    let successCount = 0;
+    const errors = [];
+    for (let i = 0; i < itemsToProcess.length; i++) {
+      const item = itemsToProcess[i];
+      try {
         const attachments = BULK_DOCUMENT_TYPES[category]
           ? item.attachments
           : [{ ...item.attachment, ocrText: item.ocrText || '' }];
@@ -556,24 +558,32 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
         };
         await addRecord(category, record);
         successCount++;
+      } catch (err) {
+        console.error(`Failed to save record ${i + 1} (${item.fullName || item.file?.name}):`, err);
+        errors.push(`Record ${i + 1} (${item.fullName || 'Unknown'}): ${err.message}`);
       }
-
+    }
+    try {
       await logAuditEntry({
         action: 'BULK_INGESTION',
         storeName: category || 'files',
-        details: `Bulk ingested ${successCount} records with OCR into ${divTitle}`,
+        details: `Bulk ingested ${successCount} of ${itemsToProcess.length} records with OCR into ${divTitle}`,
         performedBy: user?.fullName || user?.username || 'admin',
         recordData: { count: successCount, division: divTitle }
       }).catch(() => {});
+    } catch (_) { /* non-fatal */ }
+
+    if (errors.length > 0) {
+      alert(
+        `Saved ${successCount} of ${itemsToProcess.length} records.\n\nFailed records:\n${errors.join('\n')}`
+      );
+    }
+    if (successCount > 0) {
       setQueue([]);
       if (onComplete) onComplete();
       onClose();
-    } catch (err) {
-      console.error('Bulk ingestion error:', err);
-      alert('Error during bulk ingestion: ' + err.message);
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   };
 
   const inp = (extra = {}) => ({
