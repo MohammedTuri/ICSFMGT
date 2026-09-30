@@ -851,18 +851,6 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
           gap: '6px',
           marginLeft: 'auto'
         }}>
-          {category.startsWith('eoid') && (
-            <select 
-              style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '7px', padding: '6px 10px', fontSize: '0.8rem', fontWeight: 600, outline: 'none' }} 
-              value={currentEoidOption} 
-              onChange={e => handleEoidSelection(e.target.value)}
-            >
-              {eoidDropdownOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          )}
-
           {canAdd && (
             <button 
               className="glass-button" 
