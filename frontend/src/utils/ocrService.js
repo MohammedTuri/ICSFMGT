@@ -244,14 +244,22 @@ function parseMRZLines(rawText) {
         }
       }
 
-      givenParts = givenParts.map(g => {
-        let name = g.replace(/^<+|<+$/g, '').trim();
-        if (name === 'HORKU' || name === 'HORKUS' || name === 'WORKUS') name = 'WORKU';
-        return name;
-      }).filter(Boolean);
+      // Filter out OCR filler noise tokens (e.g. C, LLLLLLLLLLLCLCCLCLLKLKLKL, KKKKK)
+      const validGivenNames = givenParts
+        .map(g => {
+          let name = g.replace(/^[^A-Z]+|[^A-Z]+$/g, '').trim();
+          if (name === 'HORKU' || name === 'HORKUS' || name === 'WORKUS') name = 'WORKU';
+          return name;
+        })
+        .filter(part => {
+          if (part.length < 2) return false;
+          if (!/[AEIOUY]/i.test(part)) return false;
+          if (/^[LKCXZI1]+$/i.test(part)) return false;
+          return true;
+        });
 
-      mrzData.firstName = givenParts[0] || '';
-      mrzData.middleName = givenParts.slice(1).join(' ') || '';
+      mrzData.firstName = validGivenNames[0] || '';
+      mrzData.middleName = validGivenNames.slice(1).join(' ') || '';
     }
   }
 
