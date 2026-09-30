@@ -129,6 +129,7 @@ export async function extractTextFromAttachment(attachment, onProgress) {
   return { fullText: result.text, pages: [], confidence: result.confidence, error: result.error };
 }
 
+// ─── Country name map (ICAO 3-letter codes) ─────────────────────────────────
 const COUNTRY_NAMES = {
   // Americas
   USA: 'AMERICAN', CAN: 'CANADIAN', MEX: 'MEXICAN', BRA: 'BRAZILIAN', ARG: 'ARGENTINIAN',
@@ -158,11 +159,12 @@ const COUNTRY_NAMES = {
   AUS: 'AUSTRALIAN', NZL: 'NEW ZEALANDER',
 };
 
+// ─── Helper: clean a raw OCR name chunk ─────────────────────────────────────
 function cleanNameChunk(chunk, labelWords) {
   if (!chunk) return '';
   let val = chunk;
   for (const lw of labelWords) {
-    val = val.replace(new RegExp(`\\b${lw}\\b`, 'gi'), ' ');
+    val = val.replace(new RegExp('\\b' + lw + '\\b', 'gi'), ' ');
   }
   val = val.replace(/[^A-Za-z' -]/g, ' ');
   const tokens = val
@@ -172,34 +174,27 @@ function cleanNameChunk(chunk, labelWords) {
   return tokens.join(' ').toUpperCase();
 }
 
-/**
- * Normalise a raw OCR line so we can try to match MRZ patterns.
- * Tesseract often renders '<' as space, '|', '\', '/', '-' or '1'.
- */
+// ─── MRZ line normaliser ─────────────────────────────────────────────────────
+// Tesseract often renders '<' as space, '|', '\', '/', '-'. Normalise them.
 function normalizeMrzLine(raw) {
   return raw
     .toUpperCase()
-    .replace(/\s+/g, '') // strip all whitespace
-    .replace(/[|\\\/\-_]/g, '<') // common OCR replacements for '<'
-    .replace(/\u00AB|\u00BB|""/g, '<<') // guillemets → <<
-    .replace(/0/g, '0') // keep 0
-    .replace(/O(?=[<])/g, '<'); // lone O before < is probably <
+    .replace(/\s+/g, '')           // strip all whitespace
+    .replace(/[|\\\/\-_]/g, '<')   // common OCR substitutes for '<'
+    .replace(/\u00AB|\u00BB/g, '<<'); // guillemets
 }
 
+// ─── MRZ parser (ICAO TD3) ───────────────────────────────────────────────────
 function parseMRZLines(rawText) {
   const rawLines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
-
   let line1 = '';
   let line2 = '';
 
-  // --- Pass 1: try to find clean MRZ lines (already well-formed) ---
+  // Pass 1: find well-formed MRZ lines
   for (let i = 0; i < rawLines.length; i++) {
     const norm = normalizeMrzLine(rawLines[i]);
-
-    // Line 1: starts with P + 1-2 type chars + 3-letter country code + name separated by <<
     if (!line1 && /^P[A-Z<]{1,2}[A-Z]{3}[A-Z<]{5,}/.test(norm) && norm.length >= 28) {
       line1 = norm;
-      // Try to grab line2 immediately after
       if (i + 1 < rawLines.length) {
         const nextNorm = normalizeMrzLine(rawLines[i + 1]);
         if (nextNorm.length >= 25 && /^[A-Z0-9<]{6,}[0-9<][A-Z]{3}[0-9]{6}/.test(nextNorm)) {
@@ -207,28 +202,22 @@ function parseMRZLines(rawText) {
         }
       }
     }
-
-    // Line 2: starts with 9-char passport number zone, then check digit, then 3-char country
     if (!line2 && /^[A-Z0-9<]{6,9}[0-9<]?[A-Z]{3}[0-9]{6}[0-9][MF<]/.test(norm)) {
       line2 = norm;
     }
   }
 
-  // --- Pass 2: looser scan — look for any 25+ char line that smells like MRZ ---
+  // Pass 2: looser scan
   if (!line1 || !line2) {
     for (const raw of rawLines) {
       const norm = normalizeMrzLine(raw);
       if (norm.length < 25) continue;
-      if (!line1 && norm.startsWith('P') && norm.includes('<<')) {
-        line1 = norm;
-      }
-      if (!line2 && /[A-Z]{3}[0-9]{6}[0-9][MF<]/.test(norm)) {
-        line2 = norm;
-      }
+      if (!line1 && norm.startsWith('P') && norm.includes('<<')) line1 = norm;
+      if (!line2 && /[A-Z]{3}[0-9]{6}[0-9][MF<]/.test(norm)) line2 = norm;
     }
   }
 
-  // --- Pass 3: concatenate short adjacent lines that together form MRZ ---
+  // Pass 3: concatenate adjacent short lines
   if (!line2) {
     for (let i = 0; i < rawLines.length - 1; i++) {
       const combined = normalizeMrzLine(rawLines[i] + rawLines[i + 1]);
@@ -241,90 +230,67 @@ function parseMRZLines(rawText) {
 
   const mrzData = {};
 
-  // === Parse Line 2 ===
+  // Parse Line 2
   if (line2) {
-    // Passport number: chars 0-8 (9 chars)
     const rawPass = line2.slice(0, 9).replace(/</g, '');
-    const passPrefixMatch = rawPass.match(/^([A-Z]{1,2})([A-Z0-9]+)$/);
+    const prefixMatch = rawPass.match(/^([A-Z]{1,2})([A-Z0-9]+)$/);
     let cleanPass = rawPass;
-    if (passPrefixMatch) {
-      const pfx = passPrefixMatch[1];
-      const digits = passPrefixMatch[2]
+    if (prefixMatch) {
+      const pfx = prefixMatch[1];
+      const digits = prefixMatch[2]
         .replace(/O/gi, '0').replace(/I/gi, '1')
         .replace(/S/gi, '5').replace(/Z/gi, '2').replace(/B/gi, '8');
       cleanPass = pfx + digits;
     } else {
-      // All-numeric (USA style)
       cleanPass = rawPass.replace(/O/gi, '0').replace(/I/gi, '1');
     }
     if (cleanPass.length >= 6) mrzData.passportNumber = cleanPass;
 
-    // Country code: chars 10-12
     const countryRaw = line2.slice(10, 13).replace(/[^A-Z]/g, '');
     if (COUNTRY_NAMES[countryRaw]) mrzData.citizenship = COUNTRY_NAMES[countryRaw];
-    else if (countryRaw === 'D<<' || countryRaw === 'D<') mrzData.citizenship = 'GERMAN'; // Germany edge
 
-    // Date of birth: chars 13-18
     const dobPart = line2.slice(13, 19).replace(/O/gi, '0');
     if (/^\d{6}$/.test(dobPart)) {
       const yr = Number(dobPart.slice(0, 2)) <= 35 ? '20' + dobPart.slice(0, 2) : '19' + dobPart.slice(0, 2);
       mrzData.birthdate = `${yr}-${dobPart.slice(2, 4)}-${dobPart.slice(4, 6)}`;
     }
 
-    // Sex: char 20
     const sexChar = line2[20];
     if (sexChar === 'M') mrzData.sex = 'MALE';
     else if (sexChar === 'F') mrzData.sex = 'FEMALE';
   }
 
-  // === Parse Line 1 ===
+  // Parse Line 1
   if (line1) {
-    // Normalise double-filler variants
     const normalized = line1
       .replace(/(<<|KK|\(\(|>>|\/\/)/g, '<<')
       .replace(/[^A-Z0-9<]/g, '<');
 
-    // Extract country from positions 2-4 (after P + type)
     const countryMatch = normalized.match(/^P[A-Z<]{1,2}([A-Z]{3})/);
     if (countryMatch && !mrzData.citizenship && COUNTRY_NAMES[countryMatch[1]]) {
       mrzData.citizenship = COUNTRY_NAMES[countryMatch[1]];
     }
 
-    // Split on the mandatory '<<' separating surname from given names
     const doubleChevronIdx = normalized.indexOf('<<');
     if (doubleChevronIdx > 5) {
-      // Surname section: from after the 5-char header (P<XXX) up to <<
-      const headerEnd = normalized.match(/^P[A-Z<]{1,2}[A-Z]{3}/)?.[0]?.length || 5;
-      let surnamePart = normalized.slice(headerEnd, doubleChevronIdx).replace(/<+/g, ' ').trim();
+      const headerLen = normalized.match(/^P[A-Z<]{1,2}[A-Z]{3}/)?.[0]?.length || 5;
+      let surnamePart = normalized.slice(headerLen, doubleChevronIdx).replace(/<+/g, ' ').trim();
 
-      // Sometimes OCR merges country code into surname — strip leading country code
       if (countryMatch && surnamePart.startsWith(countryMatch[1])) {
         surnamePart = surnamePart.slice(3).trim();
       }
-
       mrzData.lastName = surnamePart.replace(/\s+/g, ' ').trim();
 
-      // Given names section: after <<
-      let givenRaw = normalized.slice(doubleChevronIdx + 2);
-      // Remove trailing filler
-      givenRaw = givenRaw.replace(/<+$/, '');
-      // Split by single or double '<'
+      let givenRaw = normalized.slice(doubleChevronIdx + 2).replace(/<+$/, '');
       const givenParts = givenRaw.split(/<+/).map(p => p.trim()).filter(Boolean);
 
-      // Filter out OCR noise tokens
       const validGiven = givenParts
         .map(g => {
           let name = g.replace(/^[^A-Z]+|[^A-Z]+$/g, '').trim();
-          // Common OCR fixes
           if (name === 'HORKU' || name === 'HORKUS' || name === 'WORKUS') name = 'WORKU';
           return name;
         })
-        .filter(part => {
-          if (part.length < 2) return false;
-          if (!/[AEIOUY]/i.test(part)) return false; // must have a vowel
-          if (/^[LKCXZI1]+$/i.test(part)) return false; // pure filler
-          return true;
-        });
+        .filter(part => part.length >= 2 && /[AEIOUY]/i.test(part) && !/^[LKCXZI1]+$/i.test(part));
 
       mrzData.firstName = validGiven[0] || '';
       mrzData.middleName = validGiven.slice(1).join(' ') || '';
@@ -334,8 +300,10 @@ function parseMRZLines(rawText) {
   return mrzData;
 }
 
-export function extractEntitiesFromText(rawText = '') {
-  const text = String(rawText || '')
+// ─── Main entity extractor ───────────────────────────────────────────────────
+export function extractEntitiesFromText(rawText) {
+  rawText = String(rawText || '');
+  const text = rawText
     .replace(/\r/g, ' ')
     .replace(/[—–]/g, '-')
     .replace(/\s+/g, ' ')
@@ -343,53 +311,41 @@ export function extractEntitiesFromText(rawText = '') {
   const upper = text.toUpperCase();
 
   const entities = {
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    fullName: '',
-    passportNumber: '',
-    citizenship: '',
-    sex: '',
-    birthdate: ''
+    firstName: '', middleName: '', lastName: '', fullName: '',
+    passportNumber: '', citizenship: '', sex: '', birthdate: '',
   };
 
-  // 1. Machine Readable Zone (MRZ) — most reliable
+  // ── 1. MRZ (most reliable) ────────────────────────────────────────────────
   const mrz = parseMRZLines(rawText);
   if (mrz.passportNumber) entities.passportNumber = mrz.passportNumber;
-  if (mrz.citizenship) entities.citizenship = mrz.citizenship;
-  if (mrz.birthdate) entities.birthdate = mrz.birthdate;
-  if (mrz.sex) entities.sex = mrz.sex;
-  if (mrz.firstName) entities.firstName = mrz.firstName;
-  if (mrz.middleName) entities.middleName = mrz.middleName;
-  if (mrz.lastName) entities.lastName = mrz.lastName;
+  if (mrz.citizenship)    entities.citizenship    = mrz.citizenship;
+  if (mrz.birthdate)      entities.birthdate      = mrz.birthdate;
+  if (mrz.sex)            entities.sex            = mrz.sex;
+  if (mrz.firstName)      entities.firstName      = mrz.firstName;
+  if (mrz.middleName)     entities.middleName     = mrz.middleName;
+  if (mrz.lastName)       entities.lastName       = mrz.lastName;
 
-  // 2. PASSPORT NUMBER from Visual Zone
+  // ── 2. Passport number from visual zone ───────────────────────────────────
   if (!entities.passportNumber) {
-    // Labelled: "Passport No.", "Passport Number", etc.
-    const passLabelMatch = text.match(/(?:Passport\s*No\.?|Passport\s*Number|No\.\s*du\s*passeport|Passeport\s*No\.?)[^A-Z0-9]{0,20}([A-Z0-9]{6,12})\b/i);
-    if (passLabelMatch && !/^(PASSPORT|DOCUMENT|PHOTO|FEDERAL|REPUBLIC|UNITED|STATES)/i.test(passLabelMatch[1])) {
-      entities.passportNumber = passLabelMatch[1].toUpperCase();
-    }
+    const labeled = text.match(/(?:Passport\s*No\.?|Passport\s*Number|No\.\s*du\s*passeport|Passeport\s*No\.?)[^A-Z0-9]{0,20}([A-Z0-9]{6,12})\b/i);
+    if (labeled && !/^(PASSPORT|DOCUMENT|PHOTO|FEDERAL|REPUBLIC|UNITED|STATES)/i.test(labeled[1]))
+      entities.passportNumber = labeled[1].toUpperCase();
   }
   if (!entities.passportNumber) {
-    // Ethiopian / Eritrean prefix pattern
-    const epMatch = upper.match(/\b((?:EP|ES|ET|ER|AP|EA)[0-9]{7})\b/);
-    if (epMatch) entities.passportNumber = epMatch[1];
+    const ethMatch = upper.match(/\b((?:EP|ES|ET|ER|AP|EA)[0-9]{7})\b/);
+    if (ethMatch) entities.passportNumber = ethMatch[1];
   }
   if (!entities.passportNumber) {
-    // US-style: exactly 9 digits
     const usMatch = upper.match(/\b([0-9]{9})\b/);
     if (usMatch) entities.passportNumber = usMatch[1];
   }
   if (!entities.passportNumber) {
-    // Generic alphanumeric: 1-2 letters + 6-8 digits
     const genMatch = upper.match(/\b([A-Z]{1,2}[0-9]{6,8})\b/);
-    if (genMatch && !/^(PASSPORT|DOCUMENT|UNITED)/.test(genMatch[1])) {
+    if (genMatch && !/^(PASSPORT|DOCUMENT|UNITED)/.test(genMatch[1]))
       entities.passportNumber = genMatch[1];
-    }
   }
 
-  // 3. CITIZENSHIP / NATIONALITY from Visual Zone
+  // ── 3. Citizenship from visual zone ──────────────────────────────────────
   if (!entities.citizenship) {
     const nationMap = [
       [/UNITED\s+STATES\s+OF\s+AMERICA|\bUSA\b|\bAMERICAN\b/, 'AMERICAN'],
@@ -419,7 +375,6 @@ export function extractEntitiesFromText(rawText = '') {
       [/PAKISTANI|PAKISTAN|\bPAK\b/, 'PAKISTANI'],
       [/AUSTRALIAN|AUSTRALIA|\bAUS\b/, 'AUSTRALIAN'],
       [/RUSSIAN|RUSSIA|\bRUS\b/, 'RUSSIAN'],
-      [/FRENCH|FRANCE|\bFRA\b/, 'FRENCH'],
       [/MOROCCAN|MOROCCO|\bMAR\b/, 'MOROCCAN'],
       [/IRANIAN|IRAN|\bIRN\b/, 'IRANIAN'],
       [/IRAQI|IRAQ|\bIRQ\b/, 'IRAQI'],
@@ -433,7 +388,7 @@ export function extractEntitiesFromText(rawText = '') {
     }
   }
 
-  // 4. SEX / GENDER
+  // ── 4. Sex ────────────────────────────────────────────────────────────────
   if (!entities.sex) {
     const sexMatch = text.match(/(?:Sex|Sexe|Sexo|Gender)\s*(?:\/\s*[A-Za-z]+\s*)?[:.\/\s]+([MF])\b/i);
     if (sexMatch) {
@@ -445,7 +400,7 @@ export function extractEntitiesFromText(rawText = '') {
     }
   }
 
-  // 5. DATE OF BIRTH
+  // ── 5. Date of birth ──────────────────────────────────────────────────────
   if (!entities.birthdate) {
     const dobMatch = text.match(/(?:Date\s*of\s*birth|Birthdate|Date\s*de\s*naissance|D\.O\.B)[^A-Z0-9]{0,20}(\d{1,2})\s*([A-Za-z]{3,4})(?:\/[A-Za-z]{3,4})?\s*(\d{2,4})/i);
     if (dobMatch) {
@@ -459,81 +414,109 @@ export function extractEntitiesFromText(rawText = '') {
     }
   }
   if (!entities.birthdate) {
-    // ISO or slash date near DOB label
     const isoMatch = text.match(/(?:Date\s*of\s*birth|D\.O\.B)[^0-9]{0,15}(\d{4}[-\/]\d{2}[-\/]\d{2}|\d{2}[-\/]\d{2}[-\/]\d{4})/i);
-    if (isoMatch) {
-      entities.birthdate = isoMatch[1].replace(/\//g, '-');
-    }
+    if (isoMatch) entities.birthdate = isoMatch[1].replace(/\//g, '-');
   }
 
-  // 6. NAME EXTRACTION from Visual Zone
-  // Only attempt if MRZ didn't already give us both parts
+  // ── 6. Name extraction from visual zone ──────────────────────────────────
   let surname = entities.lastName || '';
   let givenNames = [entities.firstName, entities.middleName].filter(Boolean).join(' ') || '';
 
-  if (!surname || !givenNames) {
-    // Pattern A: "Surname / Apellidos / Nom" label followed by name
-    // Works for US, UK, Canadian, Schengen passports
-    const surLabelMatch = text.match(
-      /(?:Surname|Family\s*Name|Last\s*Name|Nom\s*de\s*famille|Apellidos?)\s*[:.\/\s]*([A-Z][A-Z '-]{1,30}?)(?=\s{2,}|\n|\/|(?:Given|First|Prén|Prenom|Nombre|Nati|Sex|Date|Place|Personal))/i
-    );
-    const givLabelMatch = text.match(
-      /(?:Given\s*Names?|First\s*Name|Prénoms?|Prenoms?|Nombres?)\s*[:.\/\s]*([A-Z][A-Z '-]{1,40}?)(?=\s{2,}|\n|(?:Nati|Sex|Date|Place|Personal|Citizen|D\.O\.B|Birth))/i
-    );
+  // Split into lines for label→value parsing
+  const ocrLines = rawText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
 
-    if (surLabelMatch && !surname) {
-      const cleaned = cleanNameChunk(surLabelMatch[1], ['SURNAME','NOM','APELLIDOS','LAST','NAME','FAMILY','DE','FAMILLE']);
-      if (cleaned && cleaned.split(/\s+/).length <= 5) surname = cleaned;
-    }
-    if (givLabelMatch && !givenNames) {
-      const cleaned = cleanNameChunk(givLabelMatch[1], ['GIVEN','NAMES','NAME','FIRST','PRENOMS','PRENOM','NOMBRES','NOMBRE']);
-      if (cleaned && cleaned.split(/\s+/).length <= 5) givenNames = cleaned;
+  if (!surname || !givenNames) {
+    // Pattern A (line-by-line): label line → next line is the name value.
+    // Most reliable for US, UK, Canadian, Schengen, Indian, Australian passports.
+    const SURNAME_LABEL_RE = /^(?:Surname|Family\s*Name|Last\s*Name|Nom(?:\s*de\s*famille)?|Apellidos?|Cognome|Nachname|Naam)\s*(?:\/.*)?$/i;
+    const GIVEN_LABEL_RE   = /^(?:Given\s*Names?|First\s*Name|Pr[eé]noms?|Nombres?|Vorname(?:n)?|Nome)\s*(?:\/.*)?$/i;
+    // A valid name value line: only letters/spaces/hyphens, no digits, 1-5 words
+    const isNameLine = v => /^[A-Z][A-Z\s'-]{1,50}$/i.test(v) && !/\d/.test(v) && v.split(/\s+/).length <= 5;
+
+    for (let i = 0; i < ocrLines.length - 1; i++) {
+      const nextLine = ocrLines[i + 1];
+      if (!surname && SURNAME_LABEL_RE.test(ocrLines[i]) && isNameLine(nextLine)) {
+        const cleaned = cleanNameChunk(nextLine, ['SURNAME','NOM','APELLIDOS','LAST','NAME','FAMILY','COGNOME','NACHNAME']);
+        if (cleaned && cleaned.length >= 2) surname = cleaned;
+      }
+      if (!givenNames && GIVEN_LABEL_RE.test(ocrLines[i]) && isNameLine(nextLine)) {
+        const cleaned = cleanNameChunk(nextLine, ['GIVEN','NAMES','NAME','FIRST','PRENOMS','PRENOM','NOMBRES','NOMBRE','VORNAME']);
+        if (cleaned && cleaned.length >= 2) givenNames = cleaned;
+      }
     }
   }
 
   if (!surname || !givenNames) {
-    // Pattern B: Canadian style "SURNAME  Given names"
-    const canMatch = text.match(/\b([A-Z]{3,20})\s+Given\s*[Nn]ames[^A-Za-z0-9]*([A-Z][A-Za-z '-]{1,30})/i);
+    // Pattern A (inline): "Surname: SMITH  Given Names: JOHN" on same line or nearby
+    const surInline = rawText.match(/(?:Surname|Family\s*Name|Last\s*Name|Apellidos?)\s*[:/]?\s*([A-Z][A-Z '-]{1,30}?)(?:\s{2,}|\n|$)/i);
+    const givInline = rawText.match(/(?:Given\s*Names?|First\s*Name|Pr[eé]noms?|Nombres?)\s*[:/]?\s*([A-Z][A-Z '-]{1,40}?)(?:\s{2,}|\n|$)/i);
+    if (surInline && !surname) {
+      const cleaned = cleanNameChunk(surInline[1], ['SURNAME','NOM','APELLIDOS','LAST','NAME','FAMILY']);
+      if (cleaned && cleaned.split(/\s+/).length <= 4 && cleaned.length >= 2) surname = cleaned;
+    }
+    if (givInline && !givenNames) {
+      const cleaned = cleanNameChunk(givInline[1], ['GIVEN','NAMES','NAME','FIRST','PRENOMS','PRENOM','NOMBRES','NOMBRE']);
+      if (cleaned && cleaned.split(/\s+/).length <= 4 && cleaned.length >= 2) givenNames = cleaned;
+    }
+  }
+
+  if (!surname || !givenNames) {
+    // Pattern B: Canadian style "SURNAME  Given names  JOHN"
+    const canMatch = rawText.match(/\b([A-Z]{3,20})\s+Given\s*[Nn]ames[^A-Za-z0-9]*([A-Z][A-Za-z '-]{1,30})/i);
     if (canMatch && !/^(PASSPORT|CANADA|PASSEPORT|COUNTRY|CANADIAN)$/i.test(canMatch[1])) {
       if (!surname) surname = canMatch[1].toUpperCase();
       if (!givenNames) givenNames = canMatch[2].toUpperCase();
     }
   }
 
-  if (!surname || !givenNames) {
-    // Pattern C: ALL-CAPS name block heuristic
-    // Many passports print the name in ALL-CAPS on consecutive lines
-    // Find 2-4 consecutive ALL-CAPS word tokens (no digits, not common labels)
+  // Pattern C: ALL-CAPS heuristic — ONLY when NO passport number found (too risky otherwise)
+  // Passport labels like "TYPE TYPE TIPO CODE WE PASSPORTNO" would pollute names.
+  if (!surname && !givenNames && !entities.passportNumber) {
     const SKIP_WORDS = new Set([
+      // English
       'PASSPORT','PASSEPORT','REPUBLIC','FEDERAL','DEMOCRATIC','UNITED','STATES','AMERICA',
-      'CANADA','ETHIOPIA','ERITREA','KENYA','NATIONALITY','NATIONAL','SIGNATURE','BEARER',
-      'AUTHORITY','ISSUED','EXPIRY','DATE','BIRTH','SEX','MALE','FEMALE','PLACE','VALID',
-      'VISA','OFFICIAL','TRAVEL','DOCUMENT','EMERGENCY','ORDINARY','SERVICE','DIPLOMATIC',
+      'NATIONALITY','NATIONAL','SIGNATURE','BEARER','AUTHORITY','ISSUED','EXPIRY',
+      'DATE','BIRTH','SEX','MALE','FEMALE','PLACE','VALID','VISA','OFFICIAL',
+      'TRAVEL','DOCUMENT','EMERGENCY','ORDINARY','SERVICE','DIPLOMATIC',
       'CITIZEN','CITIZENSHIP','PERSONAL','NUMBER','SURNAME','GIVEN','NAMES','FIRST','LAST',
-      'TYPE','CODE','COUNTRY','HOLDER','IDENTITY','CARD','RESIDENT','PAGE','IMMIGRATION',
-      'ENDORSEMENTS','OBSERVATIONS','AMENDMENTS','MRZ','MACHINE','READABLE','ZONE',
+      'TYPE','CODE','COUNTRY','HOLDER','IDENTITY','CARD','RESIDENT','PAGE',
+      'IMMIGRATION','ENDORSEMENTS','OBSERVATIONS','AMENDMENTS','MRZ','MACHINE',
+      'READABLE','ZONE','PORT','ENTRY','SPECIMEN','SAMPLE',
+      // Countries
+      'CANADA','ETHIOPIA','ERITREA','KENYA','UGANDA','SOMALIA','SUDAN','DJIBOUTI',
+      'EGYPT','NIGERIA','GHANA','INDIA','CHINA','PAKISTAN','AUSTRALIA','RUSSIA',
+      'FRANCE','GERMANY','ITALY','SPAIN','BRITAIN','ENGLAND',
+      // French
+      'NOM','PRENOMS','PRENOM','NATIONALITE','NAISSANCE','LIEU','DELIVRE',
+      'AUTORITE','VALABLE','TITULAIRE','DU','DE','LA','LE','LES',
+      // Spanish
+      'APELLIDOS','NOMBRES','NOMBRE','NACIMIENTO','EXPEDIDO','AUTORIDAD','VALIDO','TITULAR','DEL','NO',
+      // Italian/German
+      'COGNOME','NACHNAME','VORNAME','INHABER','GUELTIG',
+      // OCR noise from multilingual merged labels
+      'TIPO','TIPOCODE','WE','RTE','AND','THE','OF','FOR',
     ]);
     const allCapsBlocks = [];
-    const capsPattern = /\b([A-Z]{2,20}(?:\s+[A-Z]{2,20}){0,4})\b/g;
+    // Require at least 2 consecutive words, each ≥3 chars
+    const capsPattern = /\b([A-Z]{3,20}(?:\s+[A-Z]{3,20}){1,3})\b/g;
     let capsMatch;
     while ((capsMatch = capsPattern.exec(upper)) !== null) {
       const tokens = capsMatch[1].split(/\s+/);
-      const valid = tokens.filter(t => !SKIP_WORDS.has(t) && /[AEIOUY]/.test(t) && t.length >= 2);
-      if (valid.length >= 2 && valid.length <= 5) {
-        allCapsBlocks.push(valid);
-      }
+      const valid = tokens.filter(t =>
+        !SKIP_WORDS.has(t) && /[AEIOUY]/.test(t) && t.length >= 3 && /^[A-Z]+$/.test(t)
+      );
+      if (valid.length >= 2 && valid.length <= 4) allCapsBlocks.push(valid);
     }
-    // Prefer the first non-trivial block of 2+ valid name tokens
-    if (allCapsBlocks.length > 0 && (!surname || !givenNames)) {
+    if (allCapsBlocks.length > 0) {
       const best = allCapsBlocks[0];
-      if (!surname) surname = best[best.length - 1]; // last token = surname convention
+      if (!surname)    surname    = best[best.length - 1];
       if (!givenNames) givenNames = best.slice(0, -1).join(' ');
     }
   }
 
   if (givenNames) {
     const tokens = givenNames.split(/\s+/).filter(Boolean);
-    entities.firstName = tokens[0] || '';
+    entities.firstName  = tokens[0] || '';
     entities.middleName = tokens.slice(1).join(' ') || '';
   }
   entities.lastName = surname || '';
@@ -542,17 +525,16 @@ export function extractEntitiesFromText(rawText = '') {
     entities.fullName = [entities.firstName, entities.middleName, entities.lastName].filter(Boolean).join(' ');
   }
 
-  // Box and Shelf
+  // ── Box / Shelf ───────────────────────────────────────────────────────────
   const boxMatch = upper.match(/\b([A-Z]{2,8}-B\d+-\d{2,3})\b/) || upper.match(/BOX\s*(?:NO|#)?\s*[:.]*\s*([A-Z0-9-]+)/);
   if (boxMatch) entities.boxNumber = boxMatch[1];
 
   const shelfMatch = upper.match(/(?:SHELF|RACK)\s*(?:NO\s*)?[:.]\s*([A-Z0-9 -]{2,12})/);
   if (shelfMatch) entities.shelfNumber = shelfMatch[1].trim();
 
-  // Date of record
+  // ── Date of record ────────────────────────────────────────────────────────
   const dateMatch = upper.match(/\b(20\d{2}[-/]\d{2}[-/]\d{2})\b/) || upper.match(/\b(\d{2}[-/]\d{2}[-/]20\d{2})\b/);
   if (dateMatch) entities.date = dateMatch[1].replace(/\//g, '-');
 
   return entities;
 }
-
