@@ -592,7 +592,7 @@ export default function UserManagement() {
                 <th style={{ padding: '14px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Staff Member</th>
                 <th style={{ padding: '14px 14px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role</th>
                 <th style={{ padding: '14px 14px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Branch Station</th>
-                <th style={{ padding: '14px 14px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Access &amp; Clearance</th>
+                <th style={{ padding: '14px 14px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap', minWidth: '190px' }}>Access &amp; Clearance</th>
                 <th style={{ padding: '14px 14px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
                 <th style={{ padding: '14px 18px', fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'right' }}>Actions</th>
               </tr>
@@ -685,13 +685,13 @@ export default function UserManagement() {
                       </td>
 
                       {/* Col 4: Clearance & Access */}
-                      <td style={{ padding: '14px 14px' }}>
+                      <td style={{ padding: '14px 14px', whiteSpace: 'nowrap', minWidth: '190px' }}>
                         {u.role === 'ADMIN' || u.role === 'SUPERVISOR' ? (
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', background: '#d1fae5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#059669', background: '#d1fae5', padding: '4px 10px', borderRadius: '6px', border: '1px solid #a7f3d0', whiteSpace: 'nowrap' }}>
                             👑 All Modules (Full Access)
                           </span>
                         ) : u.role === 'AUDITOR' ? (
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', padding: '3px 8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', padding: '4px 10px', borderRadius: '6px', border: '1px solid #bae6fd', whiteSpace: 'nowrap' }}>
                             👁️ All Modules (Audit View)
                           </span>
                         ) : (

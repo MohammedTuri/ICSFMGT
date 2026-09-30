@@ -1135,8 +1135,14 @@ function AuditFeed() {
     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
       {feed.map((entry, idx) => {
         const meta = ACTION_META[entry.action] || ACTION_META.CREATE;
-        const Icon = meta.Icon;
-        const name = entry.recordData?.fullName || entry.previousData?.fullName || entry.details || '—';
+        let name = entry.recordData?.fullName || entry.previousData?.fullName;
+        if (!name) {
+          if (entry.action === 'BULK_INGESTION') {
+            name = entry.recordData?.count ? `${entry.recordData.count} Dossiers Ingested` : (entry.details || 'Bulk Document Ingestion');
+          } else {
+            name = entry.details || 'Archive Operation';
+          }
+        }
         return (
           <div key={idx} style={{
             display: 'flex', alignItems: 'center', gap: '12px',
