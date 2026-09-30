@@ -279,10 +279,24 @@ function parseMRZLines(rawText) {
       if (countryMatch && surnamePart.startsWith(countryMatch[1])) {
         surnamePart = surnamePart.slice(3).trim();
       }
-      mrzData.lastName = surnamePart.replace(/\s+/g, ' ').trim();
+      // Truncate surname at the first run of 3+ repeated noise chars (OCR filler rendering)
+      surnamePart = surnamePart.replace(/\s*[LKXZS]{3,}.*$/, '').trim();
+      mrzData.lastName = surnamePart.replace(/\s+/g, ' ').trim() || '';
 
       let givenRaw = normalized.slice(doubleChevronIdx + 2).replace(/<+$/, '');
       const givenParts = givenRaw.split(/<+/).map(p => p.trim()).filter(Boolean);
+
+      // Helper: detect MRZ filler rendered as letters
+      const isMrzNoise = part => {
+        if (part.length < 2) return true;
+        if (!/[AEIOUY]/i.test(part)) return true;         // no vowel
+        if (/^[LKCXZI1]+$/i.test(part)) return true;      // all filler chars
+        if (/(.)\1{2,}/.test(part)) return true;           // 3+ repeated char (LLLLL, SSSSS)
+        // >60% of chars are common OCR-filler substitutes
+        const noiseCount = (part.match(/[LKCXZ]/gi) || []).length;
+        if (noiseCount / part.length > 0.60 && part.length > 3) return true;
+        return false;
+      };
 
       const validGiven = givenParts
         .map(g => {
@@ -290,7 +304,7 @@ function parseMRZLines(rawText) {
           if (name === 'HORKU' || name === 'HORKUS' || name === 'WORKUS') name = 'WORKU';
           return name;
         })
-        .filter(part => part.length >= 2 && /[AEIOUY]/i.test(part) && !/^[LKCXZI1]+$/i.test(part));
+        .filter(part => !isMrzNoise(part));
 
       mrzData.firstName = validGiven[0] || '';
       mrzData.middleName = validGiven.slice(1).join(' ') || '';
@@ -430,8 +444,14 @@ export function extractEntitiesFromText(rawText) {
     // Most reliable for US, UK, Canadian, Schengen, Indian, Australian passports.
     const SURNAME_LABEL_RE = /^(?:Surname|Family\s*Name|Last\s*Name|Nom(?:\s*de\s*famille)?|Apellidos?|Cognome|Nachname|Naam)\s*(?:\/.*)?$/i;
     const GIVEN_LABEL_RE   = /^(?:Given\s*Names?|First\s*Name|Pr[eé]noms?|Nombres?|Vorname(?:n)?|Nome)\s*(?:\/.*)?$/i;
-    // A valid name value line: only letters/spaces/hyphens, no digits, 1-5 words
-    const isNameLine = v => /^[A-Z][A-Z\s'-]{1,50}$/i.test(v) && !/\d/.test(v) && v.split(/\s+/).length <= 5;
+    // A valid name value line: only letters/spaces/hyphens, no digits, 1-5 words,
+    // and no runs of 3+ repeated characters (OCR filler rendering: LLLLL, SSSSS, KLKLKL)
+    const isNameLine = v =>
+      /^[A-Z][A-Z\s'-]{1,50}$/i.test(v) &&
+      !/\d/.test(v) &&
+      v.split(/\s+/).length <= 5 &&
+      !/(.)(\1){2,}/.test(v) &&                          // no 3+ repeated char
+      (v.match(/[LKXZS]/gi) || []).length / v.length < 0.55; // <55% noise consonants
 
     for (let i = 0; i < ocrLines.length - 1; i++) {
       const nextLine = ocrLines[i + 1];
@@ -469,9 +489,9 @@ export function extractEntitiesFromText(rawText) {
     }
   }
 
-  // Pattern C: ALL-CAPS heuristic — ONLY when NO passport number found (too risky otherwise)
-  // Passport labels like "TYPE TYPE TIPO CODE WE PASSPORTNO" would pollute names.
-  if (!surname && !givenNames && !entities.passportNumber) {
+  // Pattern C: ALL-CAPS heuristic — DISABLED when passport number OR citizenship is found.
+  // If either is known, document is identified and label noise would corrupt name extraction.
+  if (!surname && !givenNames && !entities.passportNumber && !entities.citizenship) {
     const SKIP_WORDS = new Set([
       // English
       'PASSPORT','PASSEPORT','REPUBLIC','FEDERAL','DEMOCRATIC','UNITED','STATES','AMERICA',
