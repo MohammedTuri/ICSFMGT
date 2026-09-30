@@ -102,21 +102,55 @@ function classifyBulkDocument(category, file, ocrText, extracted) {
   const text = (ocrText || '').toUpperCase();
   const source = `${filename} ${text}`;
   if (category === 'visa') return classifyVisaDocument(file, ocrText, extracted);
+
   if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') {
+    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passportCopy';
     if (/BIRTH CERTIFICATE|BIRTH|NASCIMENTO|ACTE DE NAISSANCE/.test(source)) return 'birthCertificate';
     if (/COURT|FAMILY|MARRIAGE|GUARDIAN|LEGAL|DIVORCE/.test(source)) return 'familyOrCourtDoc';
     if (/APPLICATION FORM|APPLICATION|DEMANDE/.test(source)) return 'applicationForm';
-    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passportCopy';
+    return null;
   }
+
   if (category === 'residence-id') {
+    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passportCopy';
     if (/AUTHORIZED BODY|AUTHORITY DECISION|APPROVAL|DECISION/.test(source)) return 'authorizedBodyDecision';
     if (/VALIDITY PERIOD|VALIDITY|EXPIRY|EXPIRATION/.test(source)) return 'validityPeriod';
     if (/APPLICATION FORM|APPLICATION/.test(source)) return 'applicationForm';
-    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passportCopy';
+    return null;
   }
-  if (BULK_DOCUMENT_TYPES[category]) {
-    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return category === 'residence-id-cancellation' ? 'passport' : 'passportCopy';
+
+  if (category === 'residence-id-cancellation') {
+    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passport';
+    if (/APPLICATION LETTER|INVITATION LETTER|COVER LETTER/.test(source)) return 'applicationLetter';
+    if (/APPLICATION FORM|APPLICATION/.test(source)) return 'applicationForm';
+    if (/PREVIOUS ID|OLD ID|OLD CARD/.test(source)) return 'previousId';
+    return null;
+  }
+
+  if (category === 'eritrean-id') {
+    if (/APPLICATION LETTER|INVITATION LETTER|COVER LETTER/.test(source)) return 'applicationLetter';
+    if (/APPLICATION FORM|APPLICATION/.test(source)) return 'applicationForm';
+    if (/PREVIOUS ID|OLD ID|OLD CARD/.test(source)) return 'previousId';
+    return null;
+  }
+
+  if (category === 'alien-passport') {
+    if (/ERITREAN ID|ERITREA ID|NATIONAL ID/.test(source)) return 'eritreanId';
+    if (/APPLICATION LETTER|INVITATION LETTER|COVER LETTER/.test(source)) return 'applicationLetter';
+    if (/APPLICATION FORM|APPLICATION/.test(source)) return 'applicationForm';
     if (/ERITREAN|ERITREA/.test(source)) return 'eritreanId';
+    return null;
+  }
+
+  if (category === 'etd') {
+    if (/APPLICATION LETTER|INVITATION LETTER|COVER LETTER/.test(source)) return 'applicationLetter';
+    if (/APPLICATION FORM|APPLICATION/.test(source)) return 'applicationForm';
+    if (/SUPPORTING|SUPPORT DOCUMENT/.test(source)) return 'supportingDocument';
+    return null;
+  }
+
+  if (BULK_DOCUMENT_TYPES[category]) {
+    if (/PASSPORT|PASSEPORT|MRZ/.test(source) || extracted?.passportNumber) return 'passportCopy';
     if (/PREVIOUS ID|OLD ID|OLD CARD/.test(source)) return 'previousId';
     if (/APPLICATION LETTER|INVITATION LETTER|COVER LETTER/.test(source)) return 'applicationLetter';
     if (/APPLICATION FORM|APPLICATION/.test(source)) return 'applicationForm';
