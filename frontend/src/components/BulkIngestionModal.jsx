@@ -252,6 +252,7 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [selectedOcrText, setSelectedOcrText] = useState(null);
+  const [centerNotice, setCenterNotice] = useState(null);
   const [batchLocation, setBatchLocation] = useState({
     building: 'Archive Block A',
     room: 'Room 101',
@@ -493,29 +494,56 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
     setQueue(itemsToProcess);
 
     const normalizePassport = value => String(value ?? '').trim().toUpperCase();
-    // Use itemsToProcess (freshly computed, not stale queue state) for duplicate check
-    const normalizedPassports = itemsToProcess
-      .map(item => normalizePassport(item.passportNumber))
-      .filter(Boolean);
-    const duplicateInQueue = normalizedPassports.find((passport, index) => normalizedPassports.indexOf(passport) !== index);
-    if (duplicateInQueue) {
-      alert(`Duplicate record blocked: Passport Number "${duplicateInQueue}" appears more than once in this batch.`);
+
+    let existingPassports = new Set();
+    try {
+      const existingRecords = await getAllRecords(category);
+      existingPassports = new Set(
+        existingRecords.map(record => normalizePassport(record.passportNumber)).filter(Boolean)
+      );
+    } catch (err) {
+      console.error('Duplicate check failed:', err);
+      setCenterNotice({
+        title: 'Verification Warning',
+        message: 'Unable to check existing records in database.',
+        subtext: err.message,
+        type: 'error',
+        buttonText: 'Close'
+      });
       return;
     }
 
-    try {
-      const existingRecords = await getAllRecords(category);
-      const existingPassports = new Set(
-        existingRecords.map(record => normalizePassport(record.passportNumber)).filter(Boolean)
-      );
-      const duplicateExisting = normalizedPassports.find(passport => existingPassports.has(passport));
-      if (duplicateExisting) {
-        alert(`Duplicate record blocked: Passport Number "${duplicateExisting}" already exists in this module.`);
-        return;
+    // Separate into non-duplicate items to upload and duplicates to skip
+    const seenInBatch = new Set();
+    const itemsToUpload = [];
+    const duplicatesSkipped = [];
+
+    for (const item of itemsToProcess) {
+      const pass = normalizePassport(item.passportNumber);
+      if (pass) {
+        if (existingPassports.has(pass)) {
+          duplicatesSkipped.push({ ...item, pass, reason: `Passport "${pass}" already exists in ${divTitle}` });
+          continue;
+        }
+        if (seenInBatch.has(pass)) {
+          duplicatesSkipped.push({ ...item, pass, reason: `Passport "${pass}" appears multiple times in batch` });
+          continue;
+        }
+        seenInBatch.add(pass);
       }
-    } catch (err) {
-      console.error('Duplicate check failed:', err);
-      alert('Unable to verify duplicates. The batch was not ingested. Please try again.');
+      itemsToUpload.push(item);
+    }
+
+    // If ALL records in the batch are duplicates
+    if (itemsToUpload.length === 0) {
+      const dupList = duplicatesSkipped.map(d => `"${d.pass}" (${d.fullName || 'Record'})`).join(', ');
+      setCenterNotice({
+        title: 'Duplicate Records Blocked',
+        message: `All ${itemsToProcess.length} record(s) in this batch already exist in ${divTitle}.`,
+        subtext: `Duplicate Passport(s): ${dupList}. No duplicate entries were created.`,
+        type: 'warning',
+        buttonText: 'OK'
+      });
       return;
     }
 
@@ -523,8 +551,8 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
     const user = JSON.parse(localStorage.getItem('ics_auth_user') || '{}');
     let successCount = 0;
     const errors = [];
-    for (let i = 0; i < itemsToProcess.length; i++) {
-      const item = itemsToProcess[i];
+    for (let i = 0; i < itemsToUpload.length; i++) {
+      const item = itemsToUpload[i];
       try {
         const attachments = BULK_DOCUMENT_TYPES[category]
           ? item.attachments
@@ -563,22 +591,50 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
         errors.push(`Record ${i + 1} (${item.fullName || 'Unknown'}): ${err.message}`);
       }
     }
+
+    setSaving(false);
+
     try {
       await logAuditEntry({
         action: 'BULK_INGESTION',
         storeName: category || 'files',
-        details: `Bulk ingested ${successCount} of ${itemsToProcess.length} records with OCR into ${divTitle}`,
+        details: `Bulk ingested ${successCount} records into ${divTitle} (${duplicatesSkipped.length} duplicates skipped)`,
         performedBy: user?.fullName || user?.username || 'admin',
-        recordData: { count: successCount, division: divTitle }
+        recordData: { count: successCount, duplicatesSkipped: duplicatesSkipped.length, division: divTitle }
       }).catch(() => {});
     } catch (_) { /* non-fatal */ }
 
-    if (errors.length > 0) {
-      alert(
-        `Saved ${successCount} of ${itemsToProcess.length} records.\n\nFailed records:\n${errors.join('\n')}`
-      );
-    }
-    if (successCount > 0) {
+    // If any duplicates were skipped, show clean centered report dialog
+    if (duplicatesSkipped.length > 0) {
+      const dupSummary = duplicatesSkipped.map(d => `"${d.pass}" (${d.fullName || 'Record'})`).join(', ');
+      setCenterNotice({
+        title: 'Batch Ingestion Complete',
+        message: `Successfully ingested and indexed ${successCount} non-duplicate record(s).`,
+        subtext: `Skipped ${duplicatesSkipped.length} duplicate record(s): Passport Number(s) ${dupSummary} already exist in this module.`,
+        type: 'info',
+        buttonText: 'View Ingested Records',
+        onConfirm: () => {
+          setQueue([]);
+          if (onComplete) onComplete();
+          onClose();
+        }
+      });
+    } else if (errors.length > 0) {
+      setCenterNotice({
+        title: 'Ingestion Notice',
+        message: `Saved ${successCount} of ${itemsToUpload.length} records.`,
+        subtext: `Errors encountered:\n${errors.join('\n')}`,
+        type: 'error',
+        buttonText: 'OK',
+        onConfirm: () => {
+          if (successCount > 0) {
+            setQueue([]);
+            if (onComplete) onComplete();
+            onClose();
+          }
+        }
+      });
+    } else if (successCount > 0) {
       setQueue([]);
       if (onComplete) onComplete();
       onClose();
@@ -911,6 +967,111 @@ export default function BulkIngestionModal({ isOpen, onClose, category, customMo
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => { navigator.clipboard.writeText(selectedOcrText.text || ''); alert('Copied!'); }} style={{ padding: '8px 16px', borderRadius: '8px', background: '#0f172a', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Copy OCR Text</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Centered Ingestion & Duplicate Alert Modal */}
+      {centerNotice && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            background: 'rgba(15, 23, 42, 0.65)', 
+            backdropFilter: 'blur(6px)', 
+            zIndex: 5000, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            padding: '24px' 
+          }}
+          onClick={() => {
+            const action = centerNotice.onConfirm;
+            setCenterNotice(null);
+            if (action) action();
+          }}
+        >
+          <div 
+            style={{ 
+              width: 'min(480px, 95vw)', 
+              background: '#ffffff', 
+              borderRadius: '20px', 
+              padding: '30px 28px', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              textAlign: 'center', 
+              gap: '14px', 
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.3)',
+              border: '1px solid #e2e8f0'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: centerNotice.type === 'error' ? '#fee2e2' : centerNotice.type === 'info' ? '#dcfce7' : '#fef3c7',
+              color: centerNotice.type === 'error' ? '#dc2626' : centerNotice.type === 'info' ? '#15803d' : '#d97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '4px'
+            }}>
+              {centerNotice.type === 'info' ? <CheckCircle size={30} /> : <AlertTriangle size={30} />}
+            </div>
+
+            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>
+              {centerNotice.title}
+            </h3>
+
+            <p style={{ margin: 0, fontSize: '0.94rem', color: '#334155', lineHeight: 1.55 }}>
+              {centerNotice.message}
+            </p>
+
+            {centerNotice.subtext && (
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                fontSize: '0.84rem',
+                color: '#64748b',
+                lineHeight: 1.5,
+                width: '100%',
+                textAlign: 'left',
+                maxHeight: '160px',
+                overflowY: 'auto'
+              }}>
+                {centerNotice.subtext}
+              </div>
+            )}
+
+            <button
+              type="button"
+              style={{
+                width: '100%',
+                padding: '12px 24px',
+                borderRadius: '10px',
+                background: centerNotice.type === 'info' 
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                  : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                marginTop: '6px',
+                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.25)'
+              }}
+              onClick={() => {
+                const action = centerNotice.onConfirm;
+                setCenterNotice(null);
+                if (action) action();
+              }}
+            >
+              {centerNotice.buttonText || 'OK'}
+            </button>
           </div>
         </div>
       )}
