@@ -753,15 +753,15 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
     : category;
 
   const getHeaderStyle = () => {
-    if (customModule) return { borderLeft: `6px solid ${customModule.color || '#10b981'}`, labelColor: customModule.color || '#10b981' };
-    if (category === 'visa') return { borderLeft: '6px solid var(--accent-emerald)', labelColor: 'var(--accent-emerald)' };
-    if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') return { borderLeft: '6px solid var(--accent-gold)', labelColor: 'var(--accent-gold)' };
-    if (category === 'residence-id') return { borderLeft: '6px solid var(--accent-blue)', labelColor: 'var(--accent-blue)' };
-    if (category === 'residence-id-cancellation') return { borderLeft: '6px solid #dc2626', labelColor: '#dc2626' };
-    if (category === 'etd') return { borderLeft: '6px solid rgba(165, 180, 252, 1)', labelColor: 'rgba(165, 180, 252, 1)' };
-    if (category === 'eritrean-id') return { borderLeft: '6px solid #8b5cf6', labelColor: '#8b5cf6' };
-    if (category === 'alien-passport') return { borderLeft: '6px solid #0ea5e9', labelColor: '#0ea5e9' };
-    return { borderLeft: '6px solid var(--border-glass)', labelColor: 'var(--text-primary)' };
+    if (customModule) return { borderColor: customModule.color || '#10b981', borderLeft: `5px solid ${customModule.color || '#10b981'}`, labelColor: customModule.color || '#10b981' };
+    if (category === 'visa') return { borderColor: '#10b981', borderLeft: '5px solid #10b981', labelColor: '#10b981' };
+    if (category === 'eoid' || category === 'eoid-normal' || category === 'eoid-underage') return { borderColor: '#f59e0b', borderLeft: '5px solid #f59e0b', labelColor: '#f59e0b' };
+    if (category === 'residence-id') return { borderColor: '#3b82f6', borderLeft: '5px solid #3b82f6', labelColor: '#3b82f6' };
+    if (category === 'residence-id-cancellation') return { borderColor: '#dc2626', borderLeft: '5px solid #dc2626', labelColor: '#dc2626' };
+    if (category === 'etd') return { borderColor: '#818cf8', borderLeft: '5px solid #818cf8', labelColor: '#818cf8' };
+    if (category === 'eritrean-id') return { borderColor: '#8b5cf6', borderLeft: '5px solid #8b5cf6', labelColor: '#8b5cf6' };
+    if (category === 'alien-passport') return { borderColor: '#0ea5e9', borderLeft: '5px solid #0ea5e9', labelColor: '#0ea5e9' };
+    return { borderColor: '#0284c7', borderLeft: '5px solid #0284c7', labelColor: '#0f172a' };
   };
 
   const userRole = currentUser?.role?.toUpperCase();
@@ -810,7 +810,7 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
   const styles = getHeaderStyle();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
       {/* Page Header */}
       <div style={{ 
@@ -818,26 +818,45 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
         justifyContent: 'space-between', 
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '16px',
-        paddingLeft: '16px',
-        paddingRight: '16px',
-        ...styles
+        gap: '14px',
+        padding: '14px 18px',
+        background: '#ffffff',
+        borderRadius: '12px',
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 1px 4px rgba(15, 23, 42, 0.04)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
-          <h2 style={{ margin: 0, fontWeight: 300, fontSize: '1.75rem', letterSpacing: '0.5px' }}>{getTitle()}</h2>
+        {/* Title Block with Left Accent Bar */}
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'center',
+          borderLeft: `5px solid ${styles.borderColor || '#0284c7'}`, 
+          paddingLeft: '14px',
+          minWidth: '220px'
+        }}>
+          <h2 style={{ margin: 0, fontWeight: 700, fontSize: '1.45rem', letterSpacing: '-0.3px', color: '#0f172a', lineHeight: 1.2 }}>
+            {getTitle()}
+          </h2>
+          <span style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '3px', fontWeight: 500 }}>
+            {filteredRecords.length} {filteredRecords.length === 1 ? 'Record' : 'Records'} Active in Archive
+          </span>
         </div>
         
-        {/* Actions */}
+        {/* Actions Toolbar */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'flex-end', 
           flexWrap: 'wrap', 
-          gap: '8px',
+          gap: '6px',
           marginLeft: 'auto'
         }}>
           {category.startsWith('eoid') && (
-            <select style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', padding: '7px 12px', fontSize: '0.84rem' }} value={currentEoidOption} onChange={e => handleEoidSelection(e.target.value)}>
+            <select 
+              style={{ background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '7px', padding: '6px 10px', fontSize: '0.8rem', fontWeight: 600, outline: 'none' }} 
+              value={currentEoidOption} 
+              onChange={e => handleEoidSelection(e.target.value)}
+            >
               {eoidDropdownOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
@@ -845,38 +864,49 @@ export default function CategoryExplorer({ category: categoryProp, customModule:
           )}
 
           {canAdd && (
-            <button className="glass-button" style={{ padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }} onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}>
-              <Plus size={16} /> Add Entry
+            <button 
+              className="glass-button" 
+              style={{ padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, borderRadius: '7px', whiteSpace: 'nowrap' }} 
+              onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
+            >
+              <Plus size={15} /> Add Entry
             </button>
           )}
 
           {canAdd && (
             <button
               className="glass-button"
-              style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', border: '1px solid #059669', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)', padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}
+              style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff', border: '1px solid #059669', boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, borderRadius: '7px', whiteSpace: 'nowrap' }}
               onClick={() => setIsBulkIngestOpen(true)}
               title="Bulk upload legacy dossiers and multi-page PDFs with automated OCR indexing"
             >
-              <Sparkles size={16} /> Bulk Ingest &amp; OCR
+              <Sparkles size={15} /> Bulk Ingest &amp; OCR
             </button>
           )}
 
           <button
             className="glass-button"
-            style={{ background: '#0f172a', color: '#ffffff', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}
+            style={{ background: '#0f172a', color: '#ffffff', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, borderRadius: '7px', whiteSpace: 'nowrap' }}
             onClick={() => setBarcodeModalRecord(filteredRecords[0] || records[0] || { id: 'sample', fullName: 'Sample File Tag', boxNumber: `${(category || 'DIV').toUpperCase()}-B1-01` })}
             title="Generate and print QR codes and barcodes for files & boxes"
           >
-            <QrCode size={16} /> QR / Barcodes
+            <QrCode size={15} /> QR / Barcodes
           </button>
 
-          <button className="glass-button" style={{ background: '#3b82f6', color: '#ffffff', border: '1px solid #2563eb', boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)', padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }} onClick={handleExportExcel}>
-            <Download size={16} /> Export Excel
+          <button 
+            className="glass-button" 
+            style={{ background: '#3b82f6', color: '#ffffff', border: '1px solid #2563eb', boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, borderRadius: '7px', whiteSpace: 'nowrap' }} 
+            onClick={handleExportExcel}
+          >
+            <Download size={15} /> Export Excel
           </button>
 
           {canImport && (
-            <label className="glass-button" style={{ background: '#ef4444', color: '#ffffff', border: '1px solid #dc2626', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)', cursor: 'pointer', padding: '7px 13px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
-              <Upload size={16} /> Import Excel
+            <label 
+              className="glass-button" 
+              style={{ background: '#ef4444', color: '#ffffff', border: '1px solid #dc2626', boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)', cursor: 'pointer', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, borderRadius: '7px', whiteSpace: 'nowrap' }}
+            >
+              <Upload size={15} /> Import Excel
               <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleImportExcel} />
             </label>
           )}
