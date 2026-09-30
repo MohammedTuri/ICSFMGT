@@ -55,13 +55,12 @@ export default function AuditLog() {
     dateTo: ''
   });
   const [expandedLogId, setExpandedLogId] = useState(null);
-  const [reportReady, setReportReady] = useState(false);
+  const [reportReady, setReportReady] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 
   // Load audit logs on mount and when filters change
   useEffect(() => {
-    setReportReady(false); // hide table whenever filters change
     loadAuditLogs();
   }, [filters]);
 
@@ -105,7 +104,6 @@ export default function AuditLog() {
   };
 
   const handleReset = () => {
-    setReportReady(false);
     setCurrentPage(1);
     setFilters({
       action: '',
@@ -671,27 +669,13 @@ export default function AuditLog() {
           {loading && <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Loading...</span>}
         </div>
 
-        {!reportReady ? (
-          /* ── Locked placeholder ── */
+        {loading ? (
           <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            <div style={{
-              width: '64px', height: '64px', borderRadius: '16px',
-              background: 'rgba(16,185,129,0.08)', border: '2px dashed rgba(16,185,129,0.3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px auto'
-            }}>
-              <ClipboardList size={28} style={{ color: '#059669', opacity: 0.6 }} />
-            </div>
-            <p style={{ margin: '0 0 6px 0', fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)' }}>
-              Log data is hidden
-            </p>
-            <p style={{ margin: 0, fontSize: '0.85rem' }}>
-              Click <strong style={{ color: '#059669' }}>Generate Report</strong> to load and view the activity log.
-            </p>
+            <span style={{ fontSize: '0.9rem' }}>Loading activity logs...</span>
           </div>
         ) : auditLogs.length === 0 ? (
           <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            <FileText size={40} style={{ opacity: 0.3, marginBottom: '12px', display: 'block' }} />
+            <FileText size={40} style={{ opacity: 0.3, marginBottom: '12px', display: 'block', margin: '0 auto 12px auto' }} />
             <p style={{ margin: 0 }}>No audit logs found</p>
           </div>
         ) : (<>
@@ -713,6 +697,11 @@ export default function AuditLog() {
                   const globalIdx = startIndex + idx;
                   const actionCfg = ACTION_COLORS[log.action] || ACTION_COLORS.CREATE;
                   const IconComponent = actionCfg.icon;
+                  const logName = (log.recordData && log.recordData.fullName) || 
+                    (log.previousData && log.previousData.fullName) || 
+                    (log.action === 'BULK_INGESTION' && log.recordData?.count ? `${log.recordData.count} Dossiers Ingested` : null) ||
+                    log.details || 
+                    '—';
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid var(--border-glass)', transition: 'background 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(15,43,92,0.015)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -730,7 +719,7 @@ export default function AuditLog() {
                         {log.storeName}
                       </td>
                       <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                        {(log.recordData && log.recordData.fullName) || (log.previousData && log.previousData.fullName) || log.details || '—'}
+                        {logName}
                       </td>
                       <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                         {log.userName || log.userId || '—'}
